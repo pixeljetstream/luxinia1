@@ -1,0 +1,18 @@
+luxinia_Material_v110
+Shader{
+	SHD "texfilter1.shd";
+	control "texscale" 0 2;
+	param "texscale" (1,1,0,1);
+	control "texmove" 0 2;
+	param "texmove" (0,0,0,0);
+	control "weights" 0 4;
+	param "weights" (0,0,0,0);
+	control "coords" 0 4;
+	param "coords" (0,0,0,0);
+	control "clradd" 0 4;
+	param "clradd" (0,0,0,0);
+}
+Texture:0{
+	texcontrol "source";
+	TEX "?white2D";
+}

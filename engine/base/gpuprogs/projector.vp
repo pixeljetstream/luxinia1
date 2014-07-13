@@ -1,0 +1,69 @@
+!!ARBvp1.0
+
+# PROJECTOR Shader
+#	2 textures, fog
+#
+#	used for projective texturing, texcoord generation for texcoords 0,1
+#
+#	by Christoph Kubisch
+
+# Incoming vertex attributes:
+ATTRIB	inPos = vertex.position;
+
+# Outgoing vertex attributes:
+OUTPUT	outPos = result.position;
+OUTPUT	outTex0 = result.texcoord[0];
+OUTPUT	outTex1 = result.texcoord[1];
+OUTPUT	outFog  = result.fogcoord;
+
+PARAM	mvp[4]      = { state.matrix.mvp };
+PARAM	mtexgen0[4]	= { state.texgen[0].eye.s,
+						state.texgen[0].eye.t,
+						state.texgen[0].eye.r,
+						state.texgen[0].eye.q};
+PARAM	mtexgen1[4]	= { state.texgen[1].eye.s,
+						state.texgen[1].eye.t,
+						state.texgen[1].eye.r,
+						state.texgen[1].eye.q};
+PARAM	mtex0[4]	= { state.matrix.texture[0].row[0..3] };
+PARAM	mtex1[4]	= { state.matrix.texture[1].row[0..3] };
+
+TEMP 	tex0;
+TEMP	tex1;
+TEMP   	xfPos;
+
+
+# VIEW TRANSFORMS
+# Transform the vertex to clip coordinates.
+	DP4		xfPos.x, mvp[0], inPos;
+	DP4		xfPos.y, mvp[1], inPos;
+	DP4		xfPos.z, mvp[2], inPos;
+	DP4		xfPos.w, mvp[3], inPos;
+	MOV		outPos, xfPos;
+	
+# Output Fog
+	ABS		outFog.x, xfPos.z;
+
+# Generate Texcoords
+	DP4		tex1.x,	mtexgen1[0],	xfPos;
+	DP4		tex1.y,	mtexgen1[1],	xfPos;
+	DP4		tex1.z,	mtexgen1[2],	xfPos;
+	DP4		tex1.w,	mtexgen1[3],	xfPos;
+	
+	DP4		tex0.x,	mtexgen0[0],	xfPos;
+	DP4		tex0.y,	mtexgen0[1],	xfPos;
+	DP4		tex0.z,	mtexgen0[2],	xfPos;
+	DP4		tex0.w,	mtexgen0[3],	xfPos;
+	
+# Output Tex with texmatrix
+	DP4		outTex1.x,	mtex1[0],	tex1;
+	DP4		outTex1.y,	mtex1[1],	tex1;
+	DP4		outTex1.z,	mtex1[2],	tex1;
+	DP4		outTex1.w,	mtex1[3],	tex1;
+	
+	DP4		outTex0.x,	mtex0[0],	tex0;
+	DP4		outTex0.y,	mtex0[1],	tex0;
+	DP4		outTex0.z,	mtex0[2],	tex0;
+	DP4		outTex0.w,	mtex0[3],	tex0;
+
+END

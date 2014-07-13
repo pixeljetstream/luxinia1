@@ -1,0 +1,22 @@
+!!ARBfp1.0
+PARAM bias = program.local[0];
+PARAM c[7] = { program.local[1..7] };
+TEMP R0;
+TEMP R1;
+TEX R0, fragment.texcoord[0], texture[0], RECT;
+MUL R1, R0, c[0];
+TEX R0, fragment.texcoord[1], texture[0], RECT;
+MAD R1, R0, c[1], R1;
+TEX R0, fragment.texcoord[2], texture[0], RECT;
+MAD R1, R0, c[2], R1;
+TEX R0, fragment.texcoord[3], texture[0], RECT;
+MAD R1, R0, c[3], R1;
+TEX R0, fragment.texcoord[4], texture[0], RECT;
+MAD R1, R0, c[4], R1;
+TEX R0, fragment.texcoord[5], texture[0], RECT;
+MAD R1, R0, c[5], R1;
+TEX R0, fragment.texcoord[6], texture[0], RECT;
+MAD R1, R0, c[6], R1;
+ADD R0, R1, bias;
+MUL result.color, R0, fragment.color;
+END

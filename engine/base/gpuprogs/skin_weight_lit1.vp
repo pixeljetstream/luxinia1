@@ -1,0 +1,93 @@
+!!ARBvp1.0
+
+# SKIN Shader 
+#	2 weight skinning, 1 sunlight,	1 effectlight, fog, 2 textures
+#	
+#	skinning: two weights and matrices per vertex
+#	sunlight: point light, no attenuation	light[0]
+#	effectlight: point light, attenuation	light[1]
+#	fogcoord: distance to eyeplane
+#	textures: no texgen, no texmatrix
+#
+#	by Christoph Kubisch
+
+# Incoming vertex attributes:
+ATTRIB inPos = vertex.position;
+ATTRIB inTex0 = vertex.texcoord[0];
+ATTRIB inTex1 = vertex.texcoord[1];
+ATTRIB inNormal = vertex.normal;     
+ATTRIB inColor = vertex.color;
+ATTRIB inIndices = vertex.attrib[7];
+ATTRIB inWeights = vertex.attrib[1];
+
+# Outgoing vertex attributes:
+OUTPUT outPos = result.position;
+OUTPUT outColor = result.color;
+OUTPUT outTex0 = result.texcoord[0];
+OUTPUT outTex1 = result.texcoord[1];
+OUTPUT outFog  = result.fogcoord;
+
+PARAM  	mvp[4]      = { state.matrix.mvp };
+PARAM  	lightpos    = program.local[0];
+PARAM  	ambientL	= state.light[0].ambient;
+PARAM  	diffuseL	= state.light[0].diffuse;
+
+PARAM  	matrices[VID_BONESMAX]	= { program.env[0..VID_BONESLAST] };
+TEMP   	xfPos, xfNormal, temp, dots, col;
+ADDRESS arOffset;					# Address register used to read offsets.
+
+# WEIGHT TRANSFORMS
+# get weighted matrix
+	ARL		arOffset.x, inIndices.x;
+	MUL		temp,		matrices[arOffset.x],	inWeights.x;
+	MUL		dots,		matrices[arOffset.x+1],	inWeights.x;
+	MUL		col,		matrices[arOffset.x+2],	inWeights.x;
+	ARL		arOffset.x, inIndices.y;
+	MAD		temp,		matrices[arOffset.x],	inWeights.y,	temp;
+	MAD		dots,		matrices[arOffset.x+1],	inWeights.y,	dots;
+	MAD		col,		matrices[arOffset.x+2],	inWeights.y,	col;
+
+# transform vert
+	DP4		xfPos.x,		temp,	inPos;
+	DP4		xfPos.y,		dots,	inPos;
+	DP4		xfPos.z,		col,	inPos;
+
+# transform normal
+	DP3		xfNormal.x,		temp,	inNormal;
+	DP3		xfNormal.y,		dots,	inNormal;
+	DP3		xfNormal.z,		col,	inNormal;
+
+# VIEW TRANSFORMS
+# Transform the vertex to clip coordinates.
+	MOV		xfPos.w,	inPos.w;
+	DP4		temp.x, mvp[0], xfPos;
+	DP4		temp.y, mvp[1], xfPos;
+	DP4		temp.z, mvp[2], xfPos;
+	DP4		temp.w, mvp[3], xfPos;
+	MOV		outPos, temp;
+	
+# Output Fog
+	ABS		outFog.x, temp.z;
+
+# Compute light direction
+	SUB temp, lightpos, xfPos;
+    DP3 xfPos.w, temp, temp;     
+    RSQ xfPos.w, xfPos.w;        
+    MUL xfPos.xyz, xfPos.w, temp;
+
+# Compute diffuse and specular dot products and use LIT to compute
+# lighting coefficients.
+	DP3		dots.x, xfNormal, xfPos;
+	MAX		dots.y, dots.x, 0;
+	
+
+# Accumulate color contributions.
+	MAD		col, 	dots.y, diffuseL, ambientL;
+	MUL		outColor, col, inColor;
+	MOV		outColor.w, inColor.w;
+
+# Output Tex
+	MOV		outTex1, inTex1;
+	MOV		outTex0, inTex0;
+
+END

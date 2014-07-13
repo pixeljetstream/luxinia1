@@ -1,0 +1,119 @@
+Luxinia Lua Frontend
+====================
+All functions and enums (LUXI*) are stored in "luxfrontend" table.
+
+
+Functions to Luxinia:
+(Callbacks)
+---------------------
+void lrunframe();
+	calls the frame processing of luxinia.
+	
+void lwindowsize( int w, int h);
+	when window size changed inform luxinia
+	
+void lmousebutton( int button, boolean state);
+	when mouse button was pressed or released
+
+void lmousepos( int x, int y);
+	on mouse movement.
+
+void lkeyinput( int button, boolean state, boolean characterCall);
+	on key press/release, characterCall means if key is printable.
+	
+Luxinia to Frontend:
+--------------------
+Functions are handed over to setters/getters. For example
+"OpenWindow" would be "luxfrontend.setOpenWindow(myopenwindowfunction)".
+
+Startup
+.......
+
+void PostInit();
+	this function is called after successful initialization of
+	Luxinia. You must start some sort of mainloop, which
+	should call "lrunframe".
+
+Windowing
+.........
+OpenWindow and SwapBuffers are the most important functions.
+They are needed to work. GetWindowSize should return
+meaningful values, too.
+
+
+boolean  OpenWindow( int width, int height, int redbits, 
+					int greenbits, int bluebits, int alphabits, 
+					int depthbits, int stencilbits, int mode );
+	returns true on success, false on failure.
+	A failure will result into luxinia quitting.
+	You can ignore this function, but must provide a
+	active GLContext from this time on. Mode may be
+	LUXI_WINDOW or LUXI_FULLSCREEN
+	
+void OpenWindowHint( int target, int hint );
+	Hints are fed before OpenWindow and should be taken into account.
+	targets can be LUXI_REFRESH_RATE, LUXI_STEREO, LUXI_WINDOW_NO_RESIZE,
+	LUXI_FSAA_SAMPLES.
+	And hint the value for target.
+
+void CloseWindow( );
+	Currently only used when changing from windowed to fullscreen mode.
+	First closes old window, then opens new.
+	
+void SetWindowTitle( string title);
+	sets window/application title
+
+int w,h SetWindowSize();
+	return w,h of window
+	
+void SetWindowSize( int width, int height );
+	should change size of window in which luxinia runs.
+
+int x,y GetWindowPos();
+	returns x,y of window (normally on desktop)
+	
+void SetWindowPos( int x, int y );
+	sets position on desktop
+	
+void SwapBuffers( );
+	Performs swap buffers, ie makes visible what was rendered.
+
+int  GetWindowParam( int param );
+	expects a boolean return about window state.
+	param might be LUXI_OPENED or LUXI_ACTIVE
+	
+void SetWindowOnTop( boolean state );
+	whether application should be always on top.
+	
+Input/Output
+............
+
+void Print( string );
+	prints error messages and alike to a stream.
+
+void SetCallbacks( void );
+	from this time on callbacks (mouse,key) should be working
+
+int  GetKey( int key );
+	returns whether key is pressed (LUXI_TRUE,LUXI_FALSE)
+	keycodes as for the callbacks are the LUX_KEY* enums
+	
+int  GetMouseButton( int button );
+	returns whether button is pressed.
+	codes as for callback are LUXI_MOUSE_BUTTON*
+	
+int x,y GetMousePos();
+	returns mouse position on the window containing luxinia canvas.
+	
+void SetMousePos( int xpos, int ypos );
+	sets mouse position for window running luxinia canvas
+	
+int  GetMouseWheel();
+	
+void SetMouseWheel( int pos );
+
+void Enable( int token );
+void Disable( int token );
+	tokens can be LUXI_MOUSE_CURSOR, 
+	LUXI_MOUSE_FIX (mouse trapped inside), 
+	LUXI_KEY_REPEAT

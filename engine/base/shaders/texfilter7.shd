@@ -1,0 +1,25 @@
+luxinia_Shader_v310 
+Technique:VID_ARB_VF_TEX4{
+GpuProgram{
+	BASE 0 "texfilter/texfilter_vert7.glp";
+	param "texscale" 0 VID_VALUE (1,1,0,1);
+	param "texmove" 1 VID_VALUE (0,0,0,0);
+	param "coords" 2 VID_ARRAY (0,0,0,0) 7;
+	VPROG;
+}
+{
+GpuProgram{
+	IF:USETEXRECT{
+		BASE 0 "texfilter/texfilter_frag7_rect.glp";
+	}
+	ELSE{
+		BASE 0 "texfilter/texfilter_frag7.glp";
+	}
+	param "clradd" 0 VID_VALUE (0,0,0,0);
+	param "weights" 1 VID_ARRAY (0,0,0,0) 7;
+	FPROG;
+}
+Texture{
+	TEX "Texture:0";
+}
+}

@@ -1,0 +1,15 @@
+* draw
+	vistest -> list of visible l3ds per l3dset
+	l3ddraw
+		iterate l3dset
+			update particlesys
+			iterate l3dview
+				process rcmds
+					fill layers
+					render drawnodes ...
+					render particles
+	l2ddraw
+	consoledraw
+* lua think
+* sound update
+* actor/scenenode update

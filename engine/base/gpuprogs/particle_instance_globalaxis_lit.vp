@@ -1,0 +1,108 @@
+!!ARBvp1.0
+
+# PARTICLE INSTANCE LIT Shader 
+#	global aligned rotated, fog, 2 texture
+#	lit by sun
+#	
+#	worldtransform stored in vertex attrib
+#	fogcoord: distance to eyeplane
+#	textures: facemap, shifted along y based on vertexattrib
+#
+#	by Christoph Kubisch
+
+# Incoming vertex attributes:
+ATTRIB inPos = vertex.position;
+ATTRIB inNormal = vertex.normal;
+ATTRIB inTex = vertex.texcoord[0];
+ATTRIB inColor = vertex.attrib[13];
+
+ATTRIB inMatrix0 = vertex.attrib[9];
+ATTRIB inMatrix1 = vertex.attrib[10];
+ATTRIB inMatrix2 = vertex.attrib[11];
+
+ATTRIB inParams  = vertex.attrib[12]; # = { texnum, relage , speed}
+
+# Outgoing vertex attributes:
+OUTPUT outPos = result.position;
+OUTPUT outColor = result.color;
+OUTPUT outTex0 = result.texcoord[0];
+OUTPUT outTex1 = result.texcoord[1];
+OUTPUT outFog = result.fogcoord;
+
+# Parameters:
+PARAM mvp[4] 	= { state.matrix.projection };
+PARAM texwidth 	= program.local[0];
+PARAM mtex0[]		= { state.matrix.texture[0].row[0..1] };
+PARAM mtex1[]		= { state.matrix.texture[1].row[0..1] };
+PARAM rotaxis[3]	= { program.local[65..67] };
+PARAM  	lightpos    = state.light[0].position;
+PARAM  	ambientL	= state.light[0].ambient;
+PARAM  	diffuseL	= state.light[0].diffuse;
+
+TEMP pos;              # Temporary position.
+TEMP rot;			   # Temporary rotation
+
+  
+# rotate and scale to world
+	DP3 pos.x, inPos,inMatrix0;
+	DP3 pos.y, inPos,inMatrix1;
+	DP3 pos.z, inPos,inMatrix2;
+
+# rotate to globalaxis
+	DP3	rot.x,	pos, rotaxis[0];
+	DP3	rot.y,	pos, rotaxis[1];
+	DP3	rot.z,	pos, rotaxis[2];
+
+# move to world
+	ADD pos.x, rot.x, inMatrix0.w;
+	ADD pos.y, rot.y, inMatrix1.w;
+	ADD pos.z, rot.z, inMatrix2.w;
+	MOV	pos.w, 1.0;
+	
+# Transform the vertex to clip space.
+	DP4 rot.x, mvp[0], pos;
+	DP4 rot.y, mvp[1], pos;
+	DP4 rot.z, mvp[2], pos;
+	DP4 rot.w, mvp[3], pos;
+	MOV outPos,	rot;
+# Output fog
+	ABS	outFog.x,	rot.z;
+	
+# Compute light direction
+	SUB rot, lightpos, pos;
+    DP3 pos.w, rot, rot;     
+    RSQ pos.w, pos.w;        
+    MUL pos.xyz, pos.w, rot;
+
+# Compute diffuse dot products and use MAX to compute
+# lighting coefficients.
+	DP3		rot.x, inNormal, pos;
+	MAX		rot.y, rot.x, 0;
+	
+
+# Accumulate color contributions.
+	MAD		pos, 	rot.y, diffuseL, ambientL;
+	MUL		outColor.xyz, pos, inColor;
+	MOV		outColor.w, inColor.w;
+  
+
+
+# compute outtex
+	MOV	pos,inTex;
+	ADD pos.x, inParams.xxxw, inTex.xxxw;
+	MUL pos, pos, texwidth;
+	
+# Output Tex
+	MOV 	outTex1, 1;
+	DP4		outTex1.x,	mtex1[0],	pos;
+	DP4		outTex1.y,	mtex1[1],	pos;
+	
+	MOV 	outTex0, 1;
+	DP4		outTex0.x,	mtex0[0],	pos;
+	DP4		outTex0.y,	mtex0[1],	pos;
+
+	
+
+
+END
+

@@ -1,0 +1,402 @@
+!Material Script .MTL
+->by Christoph Kubisch
+
+
+!! Content[[#cont]]
+*[[#def | Definition]]
+*[[#ex| Example]]
+*[[#st | Stages]]
+*[[#cmd | Commands]]
+*[[#mod | Modifiers]]
+*[[#ctrl | Controllables]]
+*[[#ex2| More Examples]]
+*[[#hist | History]]
+
+!! Definition[[#def]]
+A material consists of a [[Api/Shader]] (the way textures are combined) and texture/color information, it also allows to animate certain sequences of colors or textures and there are also
+modifiers to animate parameters automatically.
+
+In general a material is loaded whenever you directly apply it to a rendered surface. But it can also be used as "hi-detail" version of a general texture. That means the application will look for the material with same name first, if no material available it
+will just use the texture.
+
+A material is always bound to a single texture.
+
+The header is necessary&&&
+current layout version:&&&
+luxinia_Material_v110
+
+!!! Syntax
+All commands are case sensitive and closed by ''';''' or "newline". A keyword and its arguments may not span multiple lines.&&&
+<id> ranges from 0 to 7 &&&
+<sid> ranges from 0 to 3&&&
+<vector4> is (float,float,float,float) &&&
+<bool> is 1 = true, 0 = false
+
+!!! Branching
+You can do branching with following commands. Enclose the branches in curly brackets ''{ }''
+
+*'''IF:<condition string>'''
+*'''ELSEIF:<condition string>'''
+*'''ELSE'''
+
+The condition string can be set from luxinia API with ''resource.condition'', or it may be part of a "define" in the Cg Compiler string.&&&
+You can also negate a statement with !<condition string>.&&&
+Following conditions are automatically set if applicable:
+**''CAP_MODADD'' capability for modulated add texture combiner
+**''CAP_COMBINE4'' capability for combine4 texture combiner
+**''CAP_TEX3D'' capability for accelerated 3d textures
+**''CAP_TEXFLOAT'' capability for float textures formats (float32 and float16)
+
+Be aware that the parser is not fully rock solid, so at best use
+''COMMAND{<newline> <what><newline> }<newline>'' , when problems occur.
+
+!!! Annotations & Comments
+You can add annotations anywhere in the file and later query them after load. 
+*'''<<_ "name";''' serves as start and is skipped by branching or comments.
+*'''_>>''' denotes the end of the custom string.
+Anything between the two will become part of the annotation, so use with caution.
+
+=lres [=
+// comment until lineend
+
+// multi-line annotation
+<<_ "A"	
+test = a * b
+// this will be part of annotation as well
+blahblubb
+_>>
+
+/* block commenting ...
+<<_ "B"; min=25,max=90 _>>;	
+//inlined annotation but ignored, due to active block comment
+*/
+
+=]
+
+C-style comments with '''//''' and '''/*...*/''' may not start within command & keywords. 
+So start comments always after ''';''' in a line that contains command words.
+
+[[#cont| Content]]
+----
+!! Example[[#ex]]
+
+=lres [=
+luxinia_Material_v110
+// this is a comment
+Shader{
+	SHD "shaders/simple.shd";
+	rfalpha (0.5);
+}
+Color:0{
+	IF:BLAH{
+		RGBA (1.0,1.0,0.0,1.0);
+	}
+	ELSE{
+		RGBA (0.0,0.0,1.0,1.0);
+	}
+	/*	blockcomment
+		...
+	*/
+}
+Texture:0{
+	TEXALPHA "textures/blah/foo.tga";
+}
+Texture:1{
+	frames	5;	delay	20;	loop 3;
+	TEX "textures/blah/anim01.tga";
+	TEX "textures/blah/anim02.tga";
+	TEX "textures/blah/anim03.tga";
+	TEX "textures/blah/anim04.tga";
+	TEX "textures/blah/anim05.tga";
+}
+Texture:2{
+	TEX "blubb.jpg";
+	texscale (2,2,1);
+} =]
+
+[[#cont| Content]]
+----
+!! Stages[[#st]]
+
+'''Shader:<sid>'''	
+
+->if no <sid> is passed 0 will be used&&&
+<sid> = 0 is the default shader, it is used most time&&&
+<sid> 1,2,3 can be enabled for use with l3dview.shaderstage from within your gamecode
+
+*'''SHD "shadername.shd";'''&&&
+the shader that is used for this material. be sure you have specified all necessary color/tex ids&&&
+Optionally you can attach the Cg-compiler string with ^ as separator, like "shadername.shd^-DATI;"
+*'''rfalpha (<float>);'''&&&
+overrides shader's alphatest value in [=RenderFlag=]. However NO Modifier nor Controller allowed.
+*'''passalpha (<float>) [<int pass>];'''&&&
+overrides shader's alphatest value (default pass = 0, first pass). Be aware that this
+can only affect values set in [=DrawPass=], not those in [=RenderFlag=].
+*'''param "name" <vector4> <int pass> <int arraysize>;'''&&&
+overrides shader's param value
+**'''pass''' optional, in case same parameter is used in multiple passes within shader, you can specify the pass you refer to. 
+**'''arraysize''' optional, in case parameter is an array, you can set the arraysize here. Arraysize must match shader arraysize. Each array value is initialized with vector4.
+
+'''Color:<id>'''		
+*'''RGBA <vector4>;'''&&&
+just a simple color 
+*Sequence:&&&
+you must specify (frames, delay, loop) first if you want this color to have a sequence !
+**'''frames,delay,loop'''&&&
+see Texture
+**'''interpolate;'''&&&
+the colors will be linearly interpolated between frames
+
+'''Texture:<id>'''	
+*a single texturemap: 
+*'''TEX "filename.jpg";'''
+**'''TEX''' : RGB/RGBA
+**'''TEXALPHA''': ALPHA
+*System needs cubemap support:
+**'''TEXPROJ''': RGB/RGBA with cubemap using given texture as +Z
+**'''TEXDOTZ''': INTENSITY/RGB/RGBA with cubemap using given texture as dot(vector,+z), -1 is left and +1 is right.
+**'''TEXCUBE''': 6 textures separated by comma make this texture&&&
+"pos_x.jpg,neg_x.jpg,pos_y.jpg,neg_y.jpg,pos_z.jpg,neg_z.jpg"&&&
+or a single .dds file "cubemap.dds"
+
+*User textures:
+**if the name string looks like "USER_TEX(name)" then the engine will lookup&&&
+user-created textures or registered textures with this name.&&&
+E.g this way you could create a material that uses&&&
+TEX "USER_TEX(ground)" and 'ground' is registered via code to be any other&&&
+texture e.g grass.jpg or sand.tga...
+
+*Sequence:&&&
+you must specify (frames, delay, loop) first if you want this texture to have a sequence !
+**'''frames <uint>;'''&&&
+number of files in the sequence, must be defined before items
+**'''delay <uint>;'''&&&
+delay between sequences in milliseconds
+**'''loop <uint>;'''&&&
+how often the sequence is repeated&&&
+0 played once, 1 played twice,... 255 = played infinetely
+
+[[#cont| Content]]
+----
+!!Commands[[#cmd]]
+After the stage specific commands there is multiple possibilities to change the stage, following functions are optional.
+
+!!! shader functions:
+*'''shdcontrol "name";'''&&&
+allows you to change the shader assignment of this stage at runtime, and even individually for different rendernodes via matobject class.&&&
+Be aware that for optimization, this should not be the general case, its mostly meant for special effects. Shaders must have same parameter
+setup to be compatible. 
+
+!!!texture functions:
+all floats are in texture size: 1.0 = full length/width of a texture&&&
+if any texmatrix command is called texscale,texrotate... commands will show no effect
+
+*'''texcontrol "name";'''&&&
+allows you to change the texture assignment of this stage at runtime, and even individually for different rendernodes via matobject class.&&&
+Be aware that for optimization, this should not be the general case, its mostly meant for special effects. 
+	
+*'''texmove (<x float>,<y float>,<z float>);'''&&&
+to move the texture coordinates
+*'''texrotate (<x float>,<y float>,<z float>);'''&&&
+degrees (clockwise) to rotate them
+*'''texscale (<x float>,<y float>,<z float>);'''&&&
+to scale the coordinates, values > 1 will result into repeating textures
+*'''texcenter (<x float>,<y float>,<z float>);'''&&&
+sets a different origin than 0,0,0 for the above operations
+
+*'''texmatrixc0 (<x float>,<y float>,<z float>,<w float>);'''&&&
+sets texture matrix column for x (matrices are stored column major)
+*'''texmatrixc1 (<x float>,<y float>,<z float>,<w float>);'''&&&
+sets texture matrix column for y (matrices are stored column major)
+*'''texmatrixc2 (<x float>,<y float>,<z float>,<w float>);'''&&&
+sets texture matrix column for z (matrices are stored column major)
+*'''texmatrixc3 (<x float>,<y float>,<z float>,<w float>);'''&&&
+sets texture matrix column for translation (matrices are stored column major)
+
+*'''texgenplane0 (<x float>,<y float>,<z float>,<w float>);'''&&&
+sets texturecoord generator row for u. Texgens will only work if shader makes use of it.
+*'''texgenplane1 (<x float>,<y float>,<z float>,<w float>);'''&&&
+sets texturecoord generator row for v
+*'''texgenplane2 (<x float>,<y float>,<z float>,<w float>);'''&&&
+sets texturecoord generator row for w
+*'''texgenplane3 (<x float>,<y float>,<z float>,<w float>);'''&&&
+sets texturecoord generator row for q
+	
+*'''texconst (<R float>,<G float>,<B float>,<A float>);'''&&&
+texture constant color, for some manual blending
+*'''texclamp (<X bool>,<Y bool>,<Z bool>);'''&&&
+texture clamping (to edge) enabled for given axis. By default all are off and therefore set to repeat
+
+
+!!!Sequence functions:
+Additionally to the mandatory you can specify these
+*'''wait <uint>;'''&&&
+wait time in ms between loops
+*'''reverse <uint>;'''&&&
+every nth time the sequence is played the play direction is changed, ie. 1 would be pingpong
+
+[[#cont| Content]]
+----
+!! Modifiers[[#mod]]
+Modifiers are applied to the next function that takes the specified
+arguments (float). If the next function does not take such arguments the modifier will be ignored.&&&
+Modifiers will be interpolated or not as by user request. Some values are changed every frame, others are only "looked at" when used, the modifiers will interpolate accordingly.&&&
+Be careful and do not use too much of them. Modifiers are not allowed for sequence items.
+
+'''floatmod "<name>" <type> <delay int>	(<value float>) <cap uint> <arg uint>;'''&&&
+to modify a value over time
+*''name''&&&
+modifier name, should be unique
+*''type''&&&
+'''ADD, SIN, COS''' or '''ZIGZAG'''
+*''delay''&&&
+delay in ms between actions&&&
+> 0 interpolation takes place every frame&&&
+< 0 no interpolation is done per frame&&&
+0   hell what do I know hehe&&&
+'''SIN/COS/ZIGZAG''': means the length of a full phase
+*''value''
+**'''ADD'''&&&
+out = source += value
+**'''SIN/COS/ZIGZAG'''&&&
+out = source * SIN/COS/ZIGZAG + value
+*''cap''
+**'''ADD'''&&&
+0 then it will fall back to opposite of clamped source&&&
+1 it will reverse&&&
+2 it will stop
+**'''SIN/COS/ZIGZAG'''&&&
+0 perform all values&&&
+1 it will clamp to values > 0&&&
+2 it will clamp to values < 0
+*''arg''&&&
+to specify the argument it should affect in a following function&&&
+0 = first, 1 = second ...
+
+!!!Notes:
+ZIGZAG is linearly pending between -1 and 1 /\/\/\ &&&
+Be aware an ADD on a unclamped source can never be made to stop, only by turning all modifiers of the stage off.&&&
+If source value is clamped values above/below will be ignored and maximum/minimum used.
+
+[[#cont| Content]]
+----
+!! Controllables[[#ctrl]]
+They can be accessed via matobject class in code and can be made unique per object instance using this material.&&&
+control will override floatmods
+
+'''control "<name>" <arg uint> <length uint>;'''
+*''name''&&&
+must be unique
+*''arg''&&&
+to specify the argument it should affect in a following function&&&
+0 = first, 1 = second ...
+*''length''&&&
+optional (default = 1) maximum 4, depending on controlled value&&&
+this way you can control a vector of arbitrary length&&&
+length can be greater 4 if applied to a shader parameter array. First in that case should be always 0.
+
+[[#cont| Content]]
+----
+!! Further Examples[[#ex2]]
+
+=lres [=
+Color:0{
+	floatmod "test" ZIGZAG 500 (-1.0) 1 3;
+	RGBA (1.0,1.0,1.0,1.0);
+}
+=]
+
+Alpha value changes starting from 0 to 1 to 0.. linearly every 250ms 1 is reached because 500 would be for a full cycle but we flip values if below 0 hence double
+frequency
+
+=lres [=
+Color:0{
+	frames:	3;	delay:	2000;	loop: 255;
+	RGBA (1.0,0.0,0.0,1.0);
+	RGBA (1.0,1.0,0.0,1.0);
+	RGBA (0.0,1.0,0.0,1.0);
+	wait 30000;
+	reverse 1;
+}
+=]
+
+this would result into a traffic light effect, 30 seconds of leadfoot action likely even a bit more if taking the 2seconds of yellow phase ;)
+
+=lres [=
+Texture:0{
+	TEX "textures/foo/blubb.jpg";
+	floatmod	"shifter" ADD 1000 (0.5) 0 0;
+	texmove		(0.0,0.0,0.0);
+}
+=]
+
+Here we make a scrolling texture which is moved by half of it in a second along its X axis (sideways).
+
+[[#cont| Content]]
+----
+!!History[[#hist]]
+
+1st Draft 24.2.2005:&&&
+Shaders were split into "shaders" and material. mostly a pure branching of functionality
+
+2nd Draft 11.5.2005:&&&
+rotation is 3d now
+
+3rd Draft 21.5.2005:&&&
+added tile-based texturing
+
+4th Draft 4.6.2005:&&&
+added texcenter function to offset the origin for the other operations
+
+5th Draft 15.6.2005:&&&
+controllables are added
+
+6th Draft 28.12.2005:&&&
+USER Textures added
+
+7th Draft 2.12.2005:&&&
+multiple shaders added
+
+8th Draft 27.5.2006:&&&
+added .dds support
+
+9th Draft 28.7.2006:&&&
+texture clamping
+
+10th Draft 10.8.2006:&&&
+added "preprocessor" branching
+
+11th Draft 2.9.2006:&&&
+removed sky/cloudmatrix
+
+12th Draft 19.12.2006:&&&
+controllabes now can have an optional length parameter
+texmatrixcolum commands added
+
+13th Draft 9.4.2007:&&&
+removed sunscreenmatrix, became part of materialobject features
+added texgenplane commads
+
+14th Draft 26.5.2007:&&&
+added pass identifier for multiple instances of same parameter in shaders
+
+15th Draft 8.9.2007:&&&
+controllables now support, shader parameter arrays 
+
+16th Draft 9.9.2007:&&&
+texcontrol added, to allow changing certain textures at runtime
+
+17th Draft 24.1.2008:&&&
+proper block commenting with #{ ... #}
+
+18th Draft 23.4.2008:&&&
+commenting now in C-Style, along with raised version number
+// and /* ... */
+
+19th Draft 18.5.2008:&&&
+annotation system added
+
+20th Draft 24.9.2008:&&&
+rfalpha added, alpha removed (left deprecated)
+
+[[#cont| Content]]

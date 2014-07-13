@@ -1,0 +1,109 @@
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Backend", "Backend", "{1C8D8E6C-0F9A-4418-9B0A-5E21D841B0F0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Frontend", "Frontend", "{26A368C4-1D17-441F-A76B-B6296C7884DE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Engine", "Engine", "{1174350B-D766-4F7F-9FD6-8450B6E585EE}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "luxinia", "..\..\engine\source\buildvc9\luxinia.vcproj", "{93A7F398-FF26-4D92-BC8A-8150F9244912}"
+	ProjectSection(ProjectDependencies) = postProject
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901} = {2685BE02-FE60-44A7-B5AA-9B7F3F81B901}
+		{2C4C470D-11B6-452D-B817-0DBFA34B1509} = {2C4C470D-11B6-452D-B817-0DBFA34B1509}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "luxinia_glfw", "..\..\frontends\luxinia_glfw\buildvc9\luxinia_glfw.vcproj", "{065C5DC6-EAE4-4A57-9069-39810D816C41}"
+	ProjectSection(ProjectDependencies) = postProject
+		{93A7F398-FF26-4D92-BC8A-8150F9244912} = {93A7F398-FF26-4D92-BC8A-8150F9244912}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "luxinia_lua", "..\..\frontends\luxinia_lua\buildvc9\luxinia_lua.vcproj", "{59BD51D6-FFE8-4B80-A592-44C83BC815DE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{93A7F398-FF26-4D92-BC8A-8150F9244912} = {93A7F398-FF26-4D92-BC8A-8150F9244912}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "luxcore", "..\..\backend\buildvc9\luxcore\luxcore.vcproj", "{2C4C470D-11B6-452D-B817-0DBFA34B1509}"
+	ProjectSection(ProjectDependencies) = postProject
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901} = {2685BE02-FE60-44A7-B5AA-9B7F3F81B901}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "luxmath", "..\..\backend\buildvc9\luxmath\luxmath.vcproj", "{2685BE02-FE60-44A7-B5AA-9B7F3F81B901}"
+	ProjectSection(ProjectDependencies) = postProject
+		{2C4C470D-12B6-452D-B817-0DBFA34B1509} = {2C4C470D-12B6-452D-B817-0DBFA34B1509}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "luxplatform", "..\..\backend\buildvc9\luxplatform\luxplatform.vcproj", "{2C4C470D-12B6-452D-B817-0DBFA34B1509}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		DebugWithConsole|Win32 = DebugWithConsole|Win32
+		Release|Win32 = Release|Win32
+		ReleaseWithConsole|Win32 = ReleaseWithConsole|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{93A7F398-FF26-4D92-BC8A-8150F9244912}.Debug|Win32.ActiveCfg = Debug|Win32
+		{93A7F398-FF26-4D92-BC8A-8150F9244912}.Debug|Win32.Build.0 = Debug|Win32
+		{93A7F398-FF26-4D92-BC8A-8150F9244912}.DebugWithConsole|Win32.ActiveCfg = Debug|Win32
+		{93A7F398-FF26-4D92-BC8A-8150F9244912}.DebugWithConsole|Win32.Build.0 = Debug|Win32
+		{93A7F398-FF26-4D92-BC8A-8150F9244912}.Release|Win32.ActiveCfg = Release|Win32
+		{93A7F398-FF26-4D92-BC8A-8150F9244912}.Release|Win32.Build.0 = Release|Win32
+		{93A7F398-FF26-4D92-BC8A-8150F9244912}.ReleaseWithConsole|Win32.ActiveCfg = Release|Win32
+		{93A7F398-FF26-4D92-BC8A-8150F9244912}.ReleaseWithConsole|Win32.Build.0 = Release|Win32
+		{065C5DC6-EAE4-4A57-9069-39810D816C41}.Debug|Win32.ActiveCfg = Debug|Win32
+		{065C5DC6-EAE4-4A57-9069-39810D816C41}.Debug|Win32.Build.0 = Debug|Win32
+		{065C5DC6-EAE4-4A57-9069-39810D816C41}.DebugWithConsole|Win32.ActiveCfg = DebugWithConsole|Win32
+		{065C5DC6-EAE4-4A57-9069-39810D816C41}.DebugWithConsole|Win32.Build.0 = DebugWithConsole|Win32
+		{065C5DC6-EAE4-4A57-9069-39810D816C41}.Release|Win32.ActiveCfg = Release|Win32
+		{065C5DC6-EAE4-4A57-9069-39810D816C41}.Release|Win32.Build.0 = Release|Win32
+		{065C5DC6-EAE4-4A57-9069-39810D816C41}.ReleaseWithConsole|Win32.ActiveCfg = ReleaseWithConsole|Win32
+		{065C5DC6-EAE4-4A57-9069-39810D816C41}.ReleaseWithConsole|Win32.Build.0 = ReleaseWithConsole|Win32
+		{59BD51D6-FFE8-4B80-A592-44C83BC815DE}.Debug|Win32.ActiveCfg = Debug|Win32
+		{59BD51D6-FFE8-4B80-A592-44C83BC815DE}.Debug|Win32.Build.0 = Debug|Win32
+		{59BD51D6-FFE8-4B80-A592-44C83BC815DE}.DebugWithConsole|Win32.ActiveCfg = DebugWithConsole|Win32
+		{59BD51D6-FFE8-4B80-A592-44C83BC815DE}.DebugWithConsole|Win32.Build.0 = DebugWithConsole|Win32
+		{59BD51D6-FFE8-4B80-A592-44C83BC815DE}.Release|Win32.ActiveCfg = Release|Win32
+		{59BD51D6-FFE8-4B80-A592-44C83BC815DE}.Release|Win32.Build.0 = Release|Win32
+		{59BD51D6-FFE8-4B80-A592-44C83BC815DE}.ReleaseWithConsole|Win32.ActiveCfg = ReleaseWithConsole|Win32
+		{59BD51D6-FFE8-4B80-A592-44C83BC815DE}.ReleaseWithConsole|Win32.Build.0 = ReleaseWithConsole|Win32
+		{2C4C470D-11B6-452D-B817-0DBFA34B1509}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2C4C470D-11B6-452D-B817-0DBFA34B1509}.Debug|Win32.Build.0 = Debug|Win32
+		{2C4C470D-11B6-452D-B817-0DBFA34B1509}.DebugWithConsole|Win32.ActiveCfg = Debug|Win32
+		{2C4C470D-11B6-452D-B817-0DBFA34B1509}.DebugWithConsole|Win32.Build.0 = Debug|Win32
+		{2C4C470D-11B6-452D-B817-0DBFA34B1509}.Release|Win32.ActiveCfg = Release|Win32
+		{2C4C470D-11B6-452D-B817-0DBFA34B1509}.Release|Win32.Build.0 = Release|Win32
+		{2C4C470D-11B6-452D-B817-0DBFA34B1509}.ReleaseWithConsole|Win32.ActiveCfg = Release|Win32
+		{2C4C470D-11B6-452D-B817-0DBFA34B1509}.ReleaseWithConsole|Win32.Build.0 = Release|Win32
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901}.Debug|Win32.Build.0 = Debug|Win32
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901}.DebugWithConsole|Win32.ActiveCfg = Debug|Win32
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901}.DebugWithConsole|Win32.Build.0 = Debug|Win32
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901}.Release|Win32.ActiveCfg = Release|Win32
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901}.Release|Win32.Build.0 = Release|Win32
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901}.ReleaseWithConsole|Win32.ActiveCfg = Release|Win32
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901}.ReleaseWithConsole|Win32.Build.0 = Release|Win32
+		{2C4C470D-12B6-452D-B817-0DBFA34B1509}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2C4C470D-12B6-452D-B817-0DBFA34B1509}.Debug|Win32.Build.0 = Debug|Win32
+		{2C4C470D-12B6-452D-B817-0DBFA34B1509}.DebugWithConsole|Win32.ActiveCfg = Debug|Win32
+		{2C4C470D-12B6-452D-B817-0DBFA34B1509}.DebugWithConsole|Win32.Build.0 = Debug|Win32
+		{2C4C470D-12B6-452D-B817-0DBFA34B1509}.Release|Win32.ActiveCfg = Release|Win32
+		{2C4C470D-12B6-452D-B817-0DBFA34B1509}.Release|Win32.Build.0 = Release|Win32
+		{2C4C470D-12B6-452D-B817-0DBFA34B1509}.ReleaseWithConsole|Win32.ActiveCfg = Release|Win32
+		{2C4C470D-12B6-452D-B817-0DBFA34B1509}.ReleaseWithConsole|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{2C4C470D-11B6-452D-B817-0DBFA34B1509} = {1C8D8E6C-0F9A-4418-9B0A-5E21D841B0F0}
+		{2685BE02-FE60-44A7-B5AA-9B7F3F81B901} = {1C8D8E6C-0F9A-4418-9B0A-5E21D841B0F0}
+		{2C4C470D-12B6-452D-B817-0DBFA34B1509} = {1C8D8E6C-0F9A-4418-9B0A-5E21D841B0F0}
+		{2C9C470D-11B6-452E-B817-0DBFA34B1509} = {1C8D8E6C-0F9A-4418-9B0A-5E21D841B0F0}
+		{065C5DC6-EAE4-4A57-9069-39810D816C41} = {26A368C4-1D17-441F-A76B-B6296C7884DE}
+		{59BD51D6-FFE8-4B80-A592-44C83BC815DE} = {26A368C4-1D17-441F-A76B-B6296C7884DE}
+		{93A7F398-FF26-4D92-BC8A-8150F9244912} = {1174350B-D766-4F7F-9FD6-8450B6E585EE}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		AMDCaProjectFile = E:\projects\luxinia\tools\projectsolutions\CodeAnalyst\luxinia8.caw
+	EndGlobalSection
+EndGlobal

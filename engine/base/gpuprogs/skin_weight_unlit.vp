@@ -1,0 +1,68 @@
+!!ARBvp1.0
+
+# SKIN Shader 
+#	2 weight skinning,  fog, 2 textures
+#	
+#	skinning: two weights and matrices per vertex
+#	fogcoord: distance to eyeplane
+#	textures: no texgen, no texmatrix
+#
+#	by Christoph Kubisch
+
+# Incoming vertex attributes:
+ATTRIB inPos = vertex.position;
+ATTRIB inTex0 = vertex.texcoord[0];
+ATTRIB inTex1 = vertex.texcoord[1];
+ATTRIB inColor = vertex.color;
+ATTRIB inIndices = vertex.attrib[7];
+ATTRIB inWeights = vertex.attrib[1];
+
+# Outgoing vertex attributes:
+OUTPUT outPos = result.position;
+OUTPUT outColor = result.color;
+OUTPUT outTex0 = result.texcoord[0];
+OUTPUT outTex1 = result.texcoord[1];
+OUTPUT outFog  = result.fogcoord;
+
+PARAM  	mvp[4]       = { state.matrix.mvp };
+PARAM  	matrices[VID_BONESMAX]	= { program.env[0..VID_BONESLAST] };
+TEMP   	xfPos;
+TEMP	matx,maty,matz;
+ADDRESS arOffset;					# Address register used to read offsets.
+
+# WEIGHT TRANSFORMS
+# get weighted matrix
+	ARL		arOffset.x, inIndices.x;
+	MUL		matx,		matrices[arOffset.x],	inWeights.x;
+	MUL		maty,		matrices[arOffset.x+1],	inWeights.x;
+	MUL		matz,		matrices[arOffset.x+2],	inWeights.x;
+	ARL		arOffset.x, inIndices.y;
+	MAD		matx,		matrices[arOffset.x],	inWeights.y,	matx;
+	MAD		maty,		matrices[arOffset.x+1],	inWeights.y,	maty;
+	MAD		matz,		matrices[arOffset.x+2],	inWeights.y,	matz;
+
+# transform vert
+	DP4		xfPos.x,		matx,	inPos;
+	DP4		xfPos.y,		maty,	inPos;
+	DP4		xfPos.z,		matz,	inPos;
+
+
+# VIEW TRANSFORMS
+# Transform the vertex to clip coordinates.
+	MOV		xfPos.w,	inPos.w;
+	DP4		matx.x, mvp[0], xfPos;
+	DP4		matx.y, mvp[1], xfPos;
+	DP4		matx.z, mvp[2], xfPos;
+	DP4		matx.w, mvp[3], xfPos;
+	MOV		outPos, matx;
+	
+# Output Fog
+	ABS		outFog.x, matx.z;
+# Output Color
+	MOV		outColor, inColor;
+
+# Output Tex
+	MOV		outTex1, inTex1;
+	MOV		outTex0, inTex0;
+
+END

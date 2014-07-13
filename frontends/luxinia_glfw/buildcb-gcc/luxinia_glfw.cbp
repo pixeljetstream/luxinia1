@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="Luxinia GLFW Frontend" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="..\..\..\luxinia\luxiniaD" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="..\..\..\luxinia\" />
+				<Option object_output="obj\Debug\" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="..\..\..\luxinia\luxiniaR" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="..\..\..\luxinia\" />
+				<Option object_output="obj\Release\" />
+				<Option type="0" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wall" />
+			<Add option="-DLUXINIA_USE_DLL" />
+			<Add option="-DLUXINIA_GLFW" />
+			<Add option="-D__MINGW__" />
+			<Add directory="..\include" />
+			<Add directory="..\..\..\tools\glfw\include" />
+			<Add directory="..\..\..\luxinia\source\_includes" />
+			<Add directory="..\..\..\luxinia\include" />
+		</Compiler>
+		<ResourceCompiler>
+			<Add directory="..\shared" />
+			<Add directory="..\include" />
+		</ResourceCompiler>
+		<Linker>
+			<Add library="glfw" />
+			<Add library="glu32" />
+			<Add library="opengl32" />
+			<Add library="kernel32" />
+			<Add library="user32" />
+			<Add library="luxinia" />
+			<Add library="win32k" />
+			<Add library="shlwapi" />
+			<Add library="Iphlpapi" />
+			<Add library="lua5.1" />
+			<Add directory="..\..\..\tools\glfw\glfwvc71" />
+			<Add directory="..\..\luxinia_glfw" />
+			<Add directory="..\..\..\luxinia\source\_libraries" />
+			<Add directory="..\..\..\luxinia\luxinia_dll\lib" />
+			<Add directory="..\..\..\luxinia\source\_libraries\mingw" />
+			<Add directory="..\..\..\luxinia\source\_libraries\x86\windows\mingw" />
+		</Linker>
+		<Unit filename="..\src\luxinia_glfw.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\shared\luastate.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\shared\luastate.h" />
+		<Unit filename="..\..\shared\luxinia.ico" />
+		<Unit filename="..\..\shared\luxinia.rc">
+			<Option compilerVar="WINDRES" />
+		</Unit>
+		<Unit filename="..\..\shared\os.h" />
+		<Unit filename="..\..\shared\os_win32.cpp" />
+		<Unit filename="..\..\shared\project.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="..\..\shared\project.h" />
+		<Unit filename="..\..\shared\resource.h" />
+		<Extensions>
+			<code_completion />
+			<envvars />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

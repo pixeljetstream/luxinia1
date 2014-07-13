@@ -1,0 +1,10 @@
+!!ARBfp1.0
+PARAM bias = program.local[0];
+PARAM c[1] = { program.local[1] };
+TEMP R0;
+TEX R0, fragment.texcoord[0], texture[0], RECT;
+MUL R0, R0, c[0];
+ADD R0, R0, bias;
+MUL result.color, R0, fragment.color;
+
+END

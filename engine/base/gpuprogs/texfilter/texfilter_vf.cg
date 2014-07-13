@@ -1,0 +1,124 @@
+/* 	
+	Image Filtering
+	Allows 2-10 samples per pass
+	
+	#define USETEXRECT
+		scales texcoords prior offsets with "blurtexsize"
+		uses Rectangle textures
+		
+	This code is meant for pre-compiling to ARB 
+	(hence allows state. useage)
+*/
+
+
+/*
+# this instruction doesnt work, only in 2D mode
+TEX result.color, fragment.texcoord[0].zwzw, texture[0], RECT;
+
+# the workaround is accepted, but not practical (too many instructions)
+MOV R0, fragment.texcoord[0].zwzw;
+MUL R0.zw, R0, 0;
+TEX result.color, R0, texture[0], RECT;
+
+
+*/
+
+#define USETEXRECT
+
+#ifdef	USETEXRECT
+	#define samplerType samplerRECT
+	#define texLookup	texRECT
+#else
+	#define samplerType sampler2D
+	#define texLookup	tex2D
+#endif
+
+
+struct vfconn9
+{
+	float4 Position : POSITION;
+	float4 TexCoord0 : TEXCOORD0;
+	float2 TexCoord1 : TEXCOORD1;
+	float2 TexCoord2 : TEXCOORD2;
+	float2 TexCoord3 : TEXCOORD3;
+	float2 TexCoord4 : TEXCOORD4;
+	float2 TexCoord5 : TEXCOORD5;
+	float2 TexCoord6 : TEXCOORD6;
+	float2 TexCoord7 : TEXCOORD7;
+	float4 Color : COLOR;
+};
+
+
+
+
+vfconn9 vert9(	float4 Position : POSITION, 
+				float2 TexCoord : TEXCOORD0,
+#ifdef USETEXRECT
+			uniform float2 blurtexsize,
+#endif
+			uniform float4 coords[9],
+			uniform float4x4 WorldViewProjMatrix : state.matrix.mvp)
+{
+	vfconn9 OUT;
+	OUT.Position = mul(WorldViewProjMatrix,Position);
+#ifdef USETEXRECT
+	TexCoord = TexCoord * blurtexsize;
+#endif
+	OUT.TexCoord0.xy = coords[0].xy + TexCoord;
+	OUT.TexCoord0.zw = coords[1].xy + TexCoord;
+	OUT.TexCoord1 = coords[2].xy + TexCoord;
+	OUT.TexCoord2 = coords[3].xy + TexCoord;
+	OUT.TexCoord3 = coords[4].xy + TexCoord;
+	OUT.TexCoord4 = coords[5].xy + TexCoord;
+	OUT.TexCoord5 = coords[6].xy + TexCoord;
+	OUT.TexCoord6 = coords[7].xy + TexCoord;
+	OUT.TexCoord7 = coords[8].xy + TexCoord;
+	
+	return OUT;
+}
+
+float4 frag9(	vfconn9 IN, 
+				uniform samplerType tex : TEXUNIT0,
+				uniform float4 weights[9],
+				uniform float4 bias
+			) : COLOR
+{
+	float4 OutCol;
+	OutCol = texLookup(tex, IN.TexCoord0.xy) * weights[0];
+	float4 atifix = float4(IN.TexCoord0.zw,0,0);
+	OutCol += texLookup(tex, atifix.xy) * weights[1];
+	
+	OutCol += texLookup(tex, IN.TexCoord1) * weights[2];
+	OutCol += texLookup(tex, IN.TexCoord2) * weights[3];
+	OutCol += texLookup(tex, IN.TexCoord3) * weights[4];
+	OutCol += texLookup(tex, IN.TexCoord4) * weights[5];
+	OutCol += texLookup(tex, IN.TexCoord5) * weights[6];
+	OutCol += texLookup(tex, IN.TexCoord6) * weights[7];
+	OutCol += texLookup(tex, IN.TexCoord7) * weights[8];
+
+	OutCol += bias;
+	
+	return OutCol*IN.Color;
+}
+
+float4 frag9test(	vfconn9 IN, 
+				uniform samplerType tex : TEXUNIT0,
+				uniform float4 weights[16],
+				uniform float2 coords[16]
+) : COLOR
+{
+	float4 OutCol = float4(0,0,0,0);
+	float2 uv = IN.TexCoord0.xy;
+	for (int i = 0; i < 16; i++){
+		OutCol += texLookup(tex, uv+coords[i]) * weights[i];
+	}
+	/*
+	OutCol += texLookup(tex, uv+coords[0]) * weights[0];
+	OutCol += texLookup(tex, uv+coords[1]) * weights[1];
+	OutCol += texLookup(tex, uv+coords[2]) * weights[2];
+	OutCol += texLookup(tex, uv+coords[3]) * weights[3];
+	OutCol += texLookup(tex, uv+coords[4]) * weights[4];
+	OutCol += texLookup(tex, uv+coords[5]) * weights[5];
+	*/
+	return OutCol;
+}

@@ -1,0 +1,90 @@
+!!ARBvp1.0
+
+# BILLBOARD Shader 
+#	global aligned rotated, fog, 1 texture
+#	
+#	global aligned: scaled with vertexattrib
+#		and rotated in Z with vertexattrib
+#	fogcoord: distance to eyeplane
+#	textures: facemap, shifted along y based on vertexattrib
+#
+#	by Christoph Kubisch
+
+# Incoming vertex attributes:
+ATTRIB inPos = vertex.position;
+ATTRIB inParams = vertex.texcoord[0];     # = { Index, Size, texnum, 1 }
+ATTRIB inColor = vertex.color;
+ATTRIB inTex = vertex.attrib[15];	 # = { cos, -sin , relage , speed}
+
+# Outgoing vertex attributes:
+OUTPUT outPos = result.position;
+OUTPUT outColor = result.color;
+OUTPUT outTex0 = result.texcoord[0];
+OUTPUT outTex1 = result.texcoord[1];
+OUTPUT outFog = result.fogcoord;
+
+# Parameters:
+PARAM mvp[4] = { state.matrix.projection };
+PARAM offsets[64] = { program.local[1..64] };
+#PARAM texoffsets[32]= { program.local[33..64] };
+PARAM texwidth = program.local[0];
+PARAM mtex0[]		= { state.matrix.texture[0].row[0..1] };
+PARAM mtex1[]		= { state.matrix.texture[1].row[0..1] };
+PARAM rotaxis[3]	= { program.local[65..67] };
+
+TEMP pos;              # Temporary position.
+TEMP rot;			   # Temporary rotation
+ADDRESS arOffset;      # Address register used to read offsets.
+
+
+# Fetch the offset vector for the current vertex.
+	ARL arOffset.x, inParams.x;
+
+# Scale the offset by the particle's size 
+	MUL pos, offsets[arOffset.x], inParams.yyyw;
+
+# rotate 2d
+	MOV rot, inTex;
+	MOV rot.z, 0;
+	DP3 pos.w, pos, inTex;
+	MOV rot.x, -inTex.y;
+	MOV rot.y, inTex.x;
+	DP3 pos.y, pos, rot;
+	MOV pos.x, pos.w;
+  
+#rotate world
+	DP3	rot.x,	pos, rotaxis[0];
+	DP3	rot.y,	pos, rotaxis[1];
+	DP3	rot.z,	pos, rotaxis[2];
+	MOV rot.w, 0;
+
+# add to offset
+	ADD pos, rot, inPos;
+
+# Transform the vertex to clip space.
+	DP4 rot.x, mvp[0], pos;
+	DP4 rot.y, mvp[1], pos;
+	DP4 rot.z, mvp[2], pos;
+	DP4 rot.w, mvp[3], pos;
+	MOV outPos,	rot;
+
+# Output fog
+	ABS	outFog.x,	rot.z;
+
+# compute outtex
+	MOV pos, offsets[arOffset.x+32];
+	ADD pos.x, inParams.zzzw, pos.xxxw;
+	MUL pos, pos, texwidth;
+	
+# Output Tex
+	DP4		outTex1.x,	mtex1[0],	pos;
+	DP4		outTex1.y,	mtex1[1],	pos;
+	
+	DP4		outTex0.x,	mtex0[0],	pos;
+	DP4		outTex0.y,	mtex0[1],	pos;
+
+# Output color.
+	MOV outColor, inColor;
+
+END
+

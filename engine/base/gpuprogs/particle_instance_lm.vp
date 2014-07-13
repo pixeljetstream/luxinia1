@@ -1,0 +1,77 @@
+!!ARBvp1.0
+
+# PARTICLE INSTANCE Shader 
+#	screen aligned rotated, fog, 2 texture
+#	
+#	worldtransform stored in vertex attrib
+#	fogcoord: distance to eyeplane
+#	textures: facemap, shifted along y based on vertexattrib
+#
+#	by Christoph Kubisch
+
+# Incoming vertex attributes:
+ATTRIB inPos = vertex.position;
+ATTRIB inTex = vertex.texcoord[0];
+ATTRIB inColor = vertex.attrib[13];
+
+ATTRIB inMatrix0 = vertex.attrib[9];
+ATTRIB inMatrix1 = vertex.attrib[10];
+ATTRIB inMatrix2 = vertex.attrib[11];
+
+ATTRIB inParams  = vertex.attrib[12]; # = { texnum, relage , speed}
+
+# Outgoing vertex attributes:
+OUTPUT outPos = result.position;
+OUTPUT outColor = result.color;
+OUTPUT outTex0 = result.texcoord[0];
+OUTPUT outTex1 = result.texcoord[1];
+OUTPUT outFog = result.fogcoord;
+
+# Parameters:
+PARAM mvp[4] 	= { state.matrix.projection };
+PARAM texwidth 	= program.local[0];
+PARAM mtex0[]		= { state.matrix.texture[0].row[0..1] };
+PARAM mtex1[]		= { state.matrix.texture[1].row[0..1] };
+PARAM mtexgenS		=  state.texgen[1].eye.s ;
+PARAM mtexgenT		=  state.texgen[1].eye.t ;
+
+TEMP pos;              # Temporary position.
+TEMP rot;			   # Temporary rotation
+
+
+  
+# Transform to world
+	DP4 pos.x, inPos,inMatrix0;
+	DP4 pos.y, inPos,inMatrix1;
+	DP4 pos.z, inPos,inMatrix2;
+	MOV	pos.w, 1.0;
+
+# Transform the vertex to clip space.
+	DP4 rot.x, mvp[0], pos;
+	DP4 rot.y, mvp[1], pos;
+	DP4 rot.z, mvp[2], pos;
+	DP4 rot.w, mvp[3], pos;
+	MOV outPos,	rot;
+  
+# Output fog
+	ABS	outFog.x,	rot.z;
+
+# texgen for lightmap
+	MOV		outTex1, 1;
+	DP4		outTex1.x,	mtexgenS,	pos;
+	DP4		outTex1.y,	mtexgenT,	pos;
+	
+# compute outtex
+	MOV	pos,inTex;
+	ADD pos.x, inParams.xxxw, inTex.xxxw;
+	MUL pos, pos, texwidth;
+	
+	MOV		outTex0, 1;
+	DP4		outTex0.x,	mtex0[0],	pos;
+	DP4		outTex0.y,	mtex0[1],	pos;
+
+# Output color.
+	MOV outColor, inColor;
+
+END
+

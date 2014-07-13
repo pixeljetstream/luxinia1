@@ -1,0 +1,8309 @@
+LUXINIA - Engine Development Log
+================================
+
+-----------------------------------------------------------
+!	= priority
+ZC	= author who should do it ;)
+
+=======
+BUGS
+
+tutorials
+ - if hw capability fails, others dont work
+ - particle crash on instanncemesh (intel graphics)
+ - dyn cubemap - no updates for cubemap (intel graphics)
+ - black lightmap (intel graphics)
+
+=======
+TODO
+maybe at some point reverse integrate luxinia2 gfx backend
+
+=======
+UNTESTED:
+Morph, ParticleGroup(Bones,Vertex), Material.texcolumn
+
+=======
+ISSUES
+!!!	ATI stipple: glLineStipple causes problems after a while (pgraph.draw(true)) -> texture distortion, stipple wrong...
+!!!	Cg GLSL:	paramater arrays broken, MRT on ATI broken, no ATTR or TEXUNIT detection
+!!!	ATI ARB_VF:	no .zw texture access for RECT
+!!!	Shader:		removed the blend disable in pass setup, means you cannot do a replace pass after blend passes
+!!!	LuaCore:	allocator in debug passes uninitialized data, fixed with memset, and seems unneeded
+				for release
+!!!	Draw3D:		drawmesh with display list, results into g_VID.state.activeTex = -1 
+!!!	ResLoad:	rewrite with "const char*" as lua hands over direct pointers
+!!!	List2D:		L3DNodes, which sun to use 
+!!	ResReload:	when pointer stays same but internals change, meshes of l3dnodes wouldnt be updated
+!	GpuProgs:	when not sunlit but only fxlit gpuprogs would be wrong (unlikely case so)
+!	ResReload:	names might be too long (unlikely at 1024 chars)
+!	Shader:		use of CONSTANT may not work well on all hardware, should do a test to find out if driver works
+!	Particle:	glDrawElements using QUADS crashes SIS
+!	Projector:	TexGenQ not working on SIS
+!	Texture:	clamp on depthmap not working on Ati
+!	Animation:	assigns may leak a bit memory when model is reloaded, 
+				also if by chance bonesys is same ptr but bonecount has changed we are doomed
+
+=======
+NOTES
+*	Window:	if framebufferobject is active window size must change along !
+*	Texture:	ATI nearest filtering not working when anisotropic was used
+*	3DSMAX:		map order: ambient, diffuse,
+*	VisTest:	drawAll !! before hunting bugs that dont exist...
+*	DrawMesh:	leaves GL TextureMatrix mode on
+*	Particle:	if a emitter starts and end outside of view cone, we will never see it, when returning back to visible
+				especially for explosisons this could be tricky -> manual "visible" flag 
+*	Particle:	using materials on particles is a bit tricky, it is only meant for single pass rendering, and renderflags
+				of materials will be ignored, specifying vertex programs must do billboard generation for QUADS and TRIS
+				only the first pass will be used on rendering, so make sure the techniques are properly used to achieve this
+
+*	List2D:		0,0 is top left z -128 is near +128 is far
+*	List3D:		drawcalls within l3d must specify which fragment/vertex programs to be used
+				outside of l3d fixed function can be assumed
+*	Axis:		+X is right +Y is forward +Z is up
+				everything fires along +Y
+				in the viewer particles fire along +Z
+*	VisTest:	because vistest needs cam/proj synched to geometry nodes
+				we need to do it after cam/proj updates and before drawing
+*	before using vertex arrays, make sure you call vidUnBindBuffers(), this will unbind VBOs if they are active
+*	never mess with g_LuxTimer.time
+*	Displaylists are optimized in Nvidia driver hence unbeaten in performance on their stuff
+*	Always pop & push resources if major changes are done to visual settings
+*	Always unref indirection loaded resources !
+*	Always free references on delete!!
+
+Diary:
+written by Christoph 'CrazyButcher' Kubisch, mostly kept track of what I did myself
+
+
+!VersionCurrent
+
+-------------------
+luxinia 1 ends here
+-------------------
+
+luxinia 1 is dead long live LUXINIA 2 !
+
+What was good:
+  very flexible and complete set of features to allow easy
+  rapid prototyping. Tons of features that made a lot of game
+  and research projects possible over the years!
+  
+  it's tiny, compiles fast and offers a lot bang for the buck :)
+  fnpublish forcing us to document the public api, was also a great choice.
+  
+  The rcmd system and layering worked very well, also splitting
+  visual stuff (l3d subsystem) from rest.
+
+
+What was bad:
+- fnpublish became home of implementations, instead of just forwarding to C functions!
+  This is the biggest biggest problem of the engine, and made it hard to get a real
+  complete C api, or automatic wrappers...
+  
+- renderer originally designed for "texture combiners" fixed function stuff, 
+  retro fitting to modern rendering features / custom shaders didnt work so well.
+  It's okay for single use cases (post-process...) but not for a full blown
+  shader material system. Would not use Cg runtime anymore, just for compilation
+  and manage shaders manually.
+  
+- renderer redundancy checks way to fine-grained, instead should have used immutable
+  "rsSurface" objects to group important states.
+  
+- "vid" grew out of control and got messy over time
+
+- wanted even more renderer low level access, "rcmd" system was great but sometimes not
+  enough. Doing more with Lua would have meant better low level access system
+  (see luxinia2's luxgfx)
+  
+- should have used devil image lib ;) also should have never invested into more than a obj converter
+  all the additional work for other formats didn't pay off. Today would use "assimp"
+  
+- ui is single window, single event only. Cannot do "render-to-texture" UIs that are on 3d objects.
+
+- Luxinia2: will be a framework, not a complete engine/toolkit. Simply as it makes more sense
+  to assemble what you need, then building and maintaining a larger engine.
+  Doing more ad-hoc in Lua instead of C and always thinking of how it fits into the engine
+  arch.
+  
+Actually the good overweights the bad, despite the tiny text ;)
+
+In it's current state, the engine compiles and should survive a test-run, but version 1400 source code
+was different. The main changes were ripping out "standalone" code to make the backend libraries,
+which became basis for luxinia2. This means that the backend libs actually were run live inside
+luxinia1, but it also means that during refactoring some things might have broken.
+
+This rip out modularization actually might continue over the future.
+
+
+19.11.2011:
+-----------
+
+*''' open source '''
+internal cleanups to use luxinia2's core & math backends
+removed lots of dead meat, reverted some unfinished changes to luxf3d and 3dsmax plugin
+copy right notices...
+
+Be aware not all stuff might work as it should. Older versions of
+luxinia typically were much more "in use" by us, hence more stable.
+And the refactoring to break out luxinia2's core libs might have
+caused additional havoc. Xmas and Sparc runs ;)
+
+
+*''' dcollresult '''
+added triarray collision test and fixed issues with raytri
+
+16.08.2010:
+-----------
+
+*'''	rcmdupdatetex	'''
+added to allow vidbuffer->texcopy updates (optix interop)
+
+*'''	rcmdcall	'''
+added to allow custom function calls
+
+9.07.2010:
+----------
+
+*'''	terrain	'''
+removed as it was unused/untested
+
+19.04.2010:
+-----------
+*'''	texture	'''
+.datapointer was missing sarr pointer return
+sarr was not updated properly
+added .glid 
+
+
+31.03.2010:
+-----------
+*'''	octree/vistest	'''
+bugfix and added datalists for faster content traversal
+
+
+28.03.2010:
+-----------
+*'''	luxvid	'''
+work on textures and samplers (OGL 3.3) conform
+and other state stuff
+
+9.03.2010:
+----------
+
+*'''	vidbuffer	'''
+bugfix in submit 
+
+5.03.2010:
+----------
+
+*'''	OcTree	'''
+rewrote OcNode container list handling to be a straight
+pointer list for faster traversal and less memory consumption.
+
+2.03.2010:
+----------
+
+*'''	LuxCore	'''
+MemoryList tweaked, added ContPtrHash and memory statistics lua
+script.
+
+24.02.2010:
+-----------
+*'''	memorypool	'''
+rewrote memorycluster and renamed to memorypool
+memorypool became memorystack
+
+*'''	fastmath	'''
+added compile settings for using tables or sse versions or regular ops
+
+
+22.02.2010:
+-----------
+*'''	l3dcamera	'''
+forceupdate takes parameter whether l3dnode update is reset for next frame
+
+*'''	vidbuffer	'''
+copy command added (either via ARB_copy_buffer or ranged mapping)
+
+27.01.2010:
+----------
+*'''	texture	'''
+bugfixes in texture.createcube generation, as well as texture.pixel calls to cubemaps
+
+*'''	auto-screenshot	'''
+crash in "R E C" mode (F11)
+
+11.12.2009:
+----------
+*'''	rendersystem	'''
+
+rendersystem_forcefinish part of config and is now after swapbuffers
+supercedes the "enforced" glFinish of prev version. 
+
+!Version1400
+
+4.12.2009:
+----------
+
+*'''	Fixes	'''
+GLSL related Cg stuff, shitload of fixes
+
+2.12.2009:
+----------
+
+*'''	Fixes	'''
+vendor detection
+l3dlevelmodel index-min/max (issue with VBOs and range elements)
+better glslsm3 detection
+
+26.11.2009:
+-----------
+
+*'''	Fixes	'''
+crashbug at deinit
+scalararray.datasize 
+l3dnode.delete accessing drawnodes in unlink (reordered delete)
+rendersystem.vendor detection
+video-ram detection with restricted user rights
+illegal calls to glBuffer functions if not supported
+
+*'''	Capability	'''
+added capability.texrg
+added capability.texsize
+
+23.11.2009:
+-----------
+
+*'''	Index/VertexArray	'''
+added indexarray.indexType
+added index/vertexarray.Vidbuffer (removed vidbuffer from Meshtype)
+
+22.11.2009:
+-----------
+
+*'''	DrawMesh	'''
+bugfix in base-shader drawing (shader param corrupted by material params)
+
+*'''	VertexArray	'''
+bugfix in vertexMeshtype
+
+18.11.2009:
+-----------
+
+*'''	Shader	'''
+added "texbarrier;" keyword (NV_texture_barrier)
+
+*'''	DrawNodeList	'''
+split into multiple functions
+
+13.10.2009:
+-----------
+
+*'''	VID	'''
+switched from GLee to glew, as it is more up to date
+
+2.10.2009:
+----------
+
+*'''	capability.r2vb	'''
+bugfix reported TRUE even if not supported
+
+*'''	blendmode	'''
+added a couple of new blendmodes
+
+29.9.2009:
+----------
+
+*'''	scalartype	'''
+added bin2value and value2bin conversion functions
+
+*'''	scalararray	'''
+added asstring 
+
+!Version1380
+
+23.9.2009:
+----------
+
+*'''	meshid	'''
+added rendermesh getter
+
+*'''	rcmddrawmesh	'''
+orthographic alters nodepthtest/nodepthmask/novertexcolor renderflag
+
+21.9.2009:
+----------
+
+*'''	rcmdlogicop	'''
+added
+
+*'''	l3dview	'''
+skipped on draw if rcmdflag is 0
+
+*'''	indexarray	'''
+bugfix in indexPrimitive(setter)
+
+*'''	rcmddrawmesh/rcmdrawr2vb	'''
+bugfix ignore/forceflag
+
+16.9.2009:
+----------
+
+*'''	renderfbo	'''
+added check and apply functions
+
+*'''	matobject	'''
+matautoctronol matrix controller support for length-16 mcontrols
+
+*'''	matrix4x4	'''
+added row function
+
+11.9.2009:
+----------
+
+*'''	rcmdrawdbg '''
+moved debug helper drawing here
+
+*'''	rcmdrawprt 
+bugfix in not resetting camera matrix
+
+!Version1375
+
+4.9.2009:
+---------
+
+*'''	vid	'''
+bugfix in texcoord setter (channel must always be set)
+
+*'''	drawmesh	'''
+bugfix to allow 0 indices draw
+
+*'''	l3ddraw	'''
+bugfix when drawing camera axis and other
+helpers, they mess with modelview matrix
+
+
+2.9.2009:
+---------
+
+*'''	tutorial postfx	'''
+bugfixes with bgsykl3dnode gone
+forgot l3dview:viewdepth
+
+*'''	VIDDrawState / DrawMesh	'''
+preparing some refactoring / thinning
+
+*'''	rcmdraw2dmesh -> rcmdrawmesh	'''
+gave it a flag whether it wants to be ortho or 3d
+
+*'''	rcmdr2vb	'''
+further work on it
+
+
+1.9.2009:
+---------
+
+*'''	rcmdr2vb	'''
+added (no fpub yet, needs more work)
+for render 2 buffer capability
+
+*'''	Draw Mesh	'''
+added support for non-indexed draw
+
+31.8.2009:
+----------
+
+*'''	rendermesh	'''
+added to have proper mesh sharing capability
+
+30.8.2009:
+----------
+
+*'''	rcmdreadpixels	'''
+added (no safety checks)
+
+*'''	rcmdclear	'''
+added integer values
+
+*'''	LUXVID	'''
+some work on blendmodes
+
+!Version1373
+
+27.8.2009:
+----------
+
+*'''	rendersystem	'''
+added vendor
+*'''	vidbuffer	'''
+glid binds or unbinds
+
+*'''	Memory	'''
+aligned realloc always preserves data
+removed "charmap" for per-file allocations
+
+*'''	ContVector	'''
+added alignsize
+
+26.8.2009:
+----------
+
+*'''	rcmdfboreadfrom, readpixels	'''
+added
+
+
+25.8.2009:
+----------
+
+*'''	Mesh	'''
+introduced index16 flag, deprecated dual indexpointer solution
+
+*'''	tutorial on vidbuffer	'''
+with bugfixes alongside
+
+*'''	texture	'''
+published integer datatypes (untested)
+
+24.8.2009:
+----------
+
+*'''	BufferObject	'''
+grabs and reuploads data on push/popGL
+
+*'''	Shader	'''
+removed VID_NORMALMAPTAN blendmode
+
+*'''	Texture	'''
+downloaddata supports vidbuffer
+
+
+23.8.2009:
+----------
+
+*'''	usermesh (rcmddrawmesh, l3dprimitive,l2dimage)	'''
+vbo usermesh added
+
+*'''	Texture	'''
+texbuffer textures added based on ARB_texture_buffer_object
+
+
+22.8.2009:
+----------
+
+*'''	vidbuffer	'''
+further work on publishing
+
+*'''	vertex/indexarray	'''
+changed updateVBO to "from,size" instead of "from,to"
+
+21.8.2009:
+----------
+
+*'''	reference	'''
+some conveniance functions
+
+*'''	fpub	'''
+bugfix with function inheriting
+memleak in vahandle
+
+*'''	mesh	'''
+vbo-only content meshes, ie no local copy
+changes in mesh/indexarray as well
+
+*'''	vidbuffer	'''
+further work on making them available
+
+
+20.8.2009:
+----------
+
+*'''	LUXVID	'''
+some draf headers for the external state manager,
+still quite a lot to think about, especially
+fixed function is ugly... delaying this
+
+19.8.2009:
+----------
+
+*'''	LView	'''
+removed skl3d,and background material
+added depth min/max to viewport descriptor
+
+18.8.2009:
+----------
+
+*'''	RefSystem	'''
+bugfixes but mostly working fine now
+
+11-14.8.2009:
+----------
+*'''	FunctionPublish	'''
+overhaul for new ObjRefSys and removed redundancy with old reflib
+added PubArray for simple array/table conversions
+reactivated:
+- model.getboneparents 
+- music.getcomment
+
+
+10.8.2009:
+----------
+
+*'''	ObjRefSys	'''
+luxcore lib
+added generic refcounted obj manager with weak referencing
+will replace reflib
+
+
+
+26.7.2009:
+----------
+
+*'''	LTable	'''
+removing table returns due to memory leak bug
+removed
+- model.getboneparents 
+- music.getcomment
+- dcollider.test/testnear
+changed
+- reschunk.getloaded (returns number or ith)
+
+*'''	dcollresult	'''
+added
+
+
+6.7.2009:
+---------
+
+*'''	fpubclass	'''
+added "datapointer" function to convert a core class luauserdata to lightuserdata.
+
+5.7.2009:
+---------
+
+*'''	Tutorial / Lightmapgenerator	'''
+did that the last 2 days
+
+*'''	VertexArray	'''
+added matrix transformation to vertexNormal 
+
+*'''	Texture	'''
+more robust detection of instruction string in user created textures (must look for last ')')
+
+4.7.2009:
+---------
+
+*'''	Luxinia	'''
+refactored CLASS to LUXI_CLASS and ClassType to 
+luxiClassType, for dll SDK
+
+added func to get a luxinia native ptr from lua stack
+
+17.6.2009:
+----------
+
+*'''	LevelModel	'''
+added merge margin
+
+9.6.2009:
+---------
+
+*'''	Camera / FrustumObject '''
+fobj added to allow multiple frustums per camera
+
+3.6.2009:
+---------
+
+*'''	VID/Mesh/Skin	'''
+refactored skinning a bit
+changed gpuprogs
+added meshtype class and altered indexMeshtype and model:setmeshtype accordingly
+
+29.5.2009:
+----------
+
+*'''	VID/Mesh	'''
+sorta finished with vertex stream handling
+still need to do skinning!
+untested
+
+25.5.2009:
+----------
+
+*'''	VID/Mesh	'''
+refactoring particle attribute stream handling
+changed tangents to attr14 (was 15) as used in Cg
+changed user4 to attr15
+
+22.5.2009:
+----------
+
+*'''	VID	'''
+added VIDBuffer and changed vbo/ibo handling
+
+20.5.2009:
+----------
+
+*'''	List3D	'''
+removed unneeded visobject updates
+
+*'''	Matautoctrl / rcmddraw2/3dnode	'''
+added proper referencing of targets, removed redundant and sometimes faulty refgets
+
+* VID '''
+added some capability stuff (TBO,TexInt,PBO)
+
+18.5.2009:
+----------
+
+*'''	Texture	'''
+refactored texture init for different datatypes
+integer textures and texture r/rg
+
+*'''	Core	'''
+split FSFile to core
+
+12.5.2009:
+----------
+
+*'''	Texture	'''
+downloaddata / getGL can take scalararray as argument
+
+6.5.2009:
+---------
+
+*'''	GuiHelpers	'''
+addcolorbutton returns btn
+
+*'''	CheckBox	'''
+renamed from Checkbox
+
+4.5.2009:
+---------
+
+*'''	Shader	'''
+dont enable texturing when fragment shaders are used
+
+*'''	rcmddrawl3d	'''
+takes "kickflag" (rfNodraw...) into account
+
+
+28.4.2009:
+----------
+
+*'''	Camera	'''
+toworld: added local l3dview coords flag
+
+
+27.4.2009:
+----------
+
+*'''	L2DView3D	'''
+new class to render l3dview inside l2dlist
+
+26.3.2009:
+----------
+
+*'''	1.331 Release	'''
+system.processors added 
+
+25.3.2009:
+----------
+
+*'''	LuaCore	'''
+added compile flag for TLS support
+default to removal, as lua lanes was added
+
+
+20.3.2009:
+----------
+
+*'''	OcTree	'''
+bugfix in build, and changed split heuristic a bit
+
+*'''	Animation	'''
+prepped some stuff for "create" functions
+animflag moved to animblend info
+
+*'''	BoneSys	'''
+animflag taken at animassign and used in update
+
+15.3.2009:
+----------
+
+*'''	Trail	'''
+accessible arrays
+
+*'''	ScalarArray	'''
+revised componentoffset, added datastart
+
+*'''	VertexType	'''
+added funcs to retrieve scalartype and memoffsets to components
+added Terrain Vertices
+
+*'''	Texture / FBO	'''
+fbo bind cache must be cleared if GL TexID has changed... pubbed command for manual reset
+texture GLID is preserved on texture resize
+
+14.3.2009:
+----------
+
+*'''	Trail	'''
+rewrote without using lists and without spawnpos
+
+12.3.2009:
+----------
+
+*'''	FScalarArray	'''
+added relative path length
+
+
+8.3.2009:
+---------
+
+*'''	Texture	'''
+removed arrayops
+removed convfilter
+
+*'''	Static/ScalarArray	'''
+added mounting of each other
+added newfrompointer to scalararray
+
+5.3.2009:
+---------
+
+*'''	GuiHelpers	'''
+addSlider, labels stored with slider
+
+*'''	Texture	'''
+resize preserves GLID
+
+2.3.2009
+--------
+
+*'''	Texture	*'''	
+ScalarArray uploading
+SaclarArray mounting
+removed "datastring" (will be emulated via mounted array)
+
+*'''	ScalarArray	'''
+added componentoffset
+
+*'''	simplecollision	'''
+removed along with subclasses
+simpleshape, sphere, simplespace
+
+*'''	Compat	'''
+function that calls all required compats from minimum version
+
+27.2.2009:
+----------
+
+*'''	ScalarArray	'''
+fixes and benchmarking, for little floats
+< 400 v3s the old floatarry is better, hence will remain
+
+*'''	StaticArray	'''
+preparing deprecation, so that only floatarray will remain
+
+
+25.2.2009:
+----------
+
+*'''	ScalarArray	'''
+first fpub version
+
+
+23.2.2009:
+----------
+
+*'''	Shader/VID	'''
+added Cg semantics for global params
+added ViewportSize global param
+
+bugfix with fogdistance Cg param
+
+22.2.2009:
+----------
+
+*'''	DrawDebug	'''
+bugfix in drawbones names
+
+
+7.2.2009:
+---------
+
+*'''	VID	'''
+split vidTexBlend in the "checker" and Set functions
+changed rgb/alphascale to integers 0,1,2 which map to float 1,2,4 
+also added VIDTexBlendHash and default blends to further speed
+up most used state sets
+
+*'''	VisTest/OcTree	'''
+more bugfixes
+added class for vistest and exposed more tweakables
+
+6.2.2009:
+---------
+
+*'''	VisTest...	'''
+further improvements, kicked out Cone test,
+use AABB for static visobjects and frsutum sphere for others
+for better cache useage put more data into occontainer
+
+5.2.2009:
+---------
+
+*'''	Texture	'''
+texture res secondary name now stores type, allows loading same file
+with different type
+
+*'''	Frustum/VisTest/OcTree	'''
+optimized
+bugfix in the new frustumbox culler
+bugfix in octree->max[2] setting
+
+3.2.2009:
+---------
+
+*'''	l3dview	'''
+bugfix in .new(rcmdbias) bias was ignored
+
+28.1.2009:
+----------
+
+*'''	Texture	'''
+arraydecalinv added
+
+27.1.2009:
+----------
+*'''	VID	'''
+bugfix in gpu vendor extraction, which disables vbos per default
+
+26.1.2009:
+----------
+
+*'''	ActorNode	'''
+removed velocity, actorthink now updates link.matrix
+
+25.1.2009:
+----------
+
+*'''	OcTree	'''
+added custom ocnode memory addition for coherency
+
+*'''	Frustum	'''
+added coherency/mask and quicker AABB test
+to be used in modified VisTest
+
+24.1.2009:
+----------
+
+*'''	Luxinia	'''
+all matrices are now SIMDaligned, SIMD version of matrix math was added
+for SSE. Applied to most important operations 
+
+*'''	CoreLib	'''
+ScalarArray has now most functionality (misses 2D ops)
+
+*'''	Window	'''
+sets swapinterval properly after window creation
+
+
+16.1.2009:
+----------
+
+*'''	Luxinia/Frontends	'''
+buildsetup slightly changed to allow "ReleaseFast" version
+improved version generator
+
+13.1.2009:
+----------
+
+*'''	Luxinia	'''
+switched to LuxCore library
+removed lots of dead meat
+removed namespaces for l3d... and assorted functions
+
+*'''	Memory	'''
+The allocators now use "zalloc" for zero'ed malloc
+and malloc for proper malloc
+removed the "noSet0" and so on names
+
+
+30.12.2008:
+-----------
+
+*'''	List3DNode	'''
+refactoring to make all List3DNode_new with same "start"
+
+*'''	Material	'''
+added shdcontrols next to texcontrols, both shared internally as "rescontrol"
+
+*'''	TBTerrainInstance	'''
+almost finished (proper l3dtbterrain material sets still missing)
+as well as reference implementation
+
+*'''	TBTerrainDecal	'''
+added sortid and better sortkey generation
+
+27.12.2008:
+-----------
+
+*'''	PText	'''
+struct that encloses all needed info for the printable text
+affected l3d/l2dtext 
+
+*'''	L3DBatchBuffer	'''
+added permesh l3dnode pointers and removed the drawnode casting hack
+
+*'''	TBTerrain	'''
+prepping to break of DrawCache into per instance
+with custom blocksize
+
+*'''	ModelInstance	'''
+refactored from ModelObject
+
+*'''	Mesh	'''
+using enums to access listID for safety
+
+*'''	DrawNode	'''
+made l3d pointer only for LUX_DEVBUILD
+added drawfunc upvalue
+
+7.12.2008:
+----------
+
+*'''	IModel	'''
+IModel removed from core engine, .mm loading removed
+EXModel will replace IModel for tools
+
+3.12.2008:
+----------
+
+*'''	MathLib	'''
+luxmath was born and is its own library now
+tons of code was adjusted in luxinia itself
+Matrix renamed to Matrix44 for consistency
+
+20.11.2008:
+-----------
+
+*'''	IndexArray	'''
+bugfix, indexPtrs pointed to wrong method
+
+*'''	Mesh	'''
+bugfix in submitVBO, "to" parameter became 0 if not set to -1
+
+19.11.2008:
+-----------
+
+*'''	Input/FPub	'''
+functions to disable internal keys
+escquit always works when console is on
+
+17.11.2008:
+-----------
+
+*'''	Texture/VID	'''
+bugfix in texture upload which could screw up statemanager
+removed "vidTexturing" calls from texture resource stuff altogether.
+
+16.11.2008:
+-----------
+
+*'''	FPub	'''
+changed some funcs to no longer user "int" but LUXI_CLASS_POINTER
+
+15.11.2008:
+-----------
+
+*'''	Texture	'''
+added ARRAY 1D/2D textures
+
+*'''	Shader/VID	'''
+VID_CG_SM4,VID_CG_SM4_GS added
+VID_CG_SM3_TEX8 renamed to VID_CG_SM3
+
+*'''	List3D Draw	'''
+some code refined
+allowing direct drawing of an unactivated l3dview
+
+*'''	List2D	'''
+removed l3dtarget/l3dtargetoff (became inaccurate due to l3dview mechanism)
+
+7.11.2008:
+----------
+
+*'''	Frontend/Window	'''
+added iconify/restore Window functions
+
+9.10.2008:
+----------
+
+*'''	FXUtils	'''
+bugfix in filter1 gpuprogs
+
+3.10.2008:
+----------
+
+*'''	Texture	'''
+resize allows depth resizing for 3d textures
+bugfix in getdata, didnt overwrite current imagedata
+
+
+1.10.2008:
+----------
+
+*'''	RCMD	'''
+rcmdcopytex properly supports all textures now (1d,2d,3d,rect,cube)
+
+*'''	Frontend	'''
+luxinia.exe (msvc8) now defaults to non-console variant
+
+30.9.2008:
+----------
+
+*'''	RCMD	'''
+bugfix in rcmddepth (wasnt gc'ed)
+rcmddrawl3d added for drawing l3dnodes directly (discarded when not visible)
+
+*'''	l3dview	'''
+non-default can have varying rcmd maxcount
+rcmdget added for debugging
+
+26.9.2008:
+----------
+
+*'''	Common	'''
+version string generator uses 0.9 release date as reference
+error of 4 days
+
+*'''	Window	'''
+multisamples fetched via glGet, removed need for frontend query
+
+*'''	Texture	'''
+bugfix in texture.createfullwindow datatype was ignored
+
+24.9.2008:
+----------
+
+*'''	Shader	'''
+NOCOMPILE always set when "newpass" or "gpuprogram" are used
+blendmode part of RenderFlag
+RenderFlag now proper "copy on assign" for all states
+NewPass renamed to DrawPass
+DrawPass removed "alphafunc", added "stateflag"
+
+*'''	Material '''
+removed "alpha" modifier/controllable
+
+*'''	GLShader	'''
+refactored code a bit to separate codepaths better between blend-compile style
+and programmable.
+also removed shader->alpha state sets
+
+*'''	rcmddepth	'''
+crash bugfix & error in simplerenderqueue
+
+23.9.2008:
+----------
+
+*'''	VID / rcmddepth	'''
+added possibility to change depthtest func (TODO range)
+also part of simplerenderqueue rDepth and set to LEQUAL
+
+7.9.2008:
+---------
+
+*'''	MeshVertex	'''
+separate structs for some vertextypes
+
+*'''	StaticArray	'''
+refactored a bit
+
+*'''	vertex/indexarray	'''
+partial vbo submits
+
+*'''	Texture	'''
+added "dxt1,dxt3,dxt5" special keywords for specific
+compression type
+
+29.8.2008:
+----------
+
+*'''	Profiling	'''
+bugfix in "percentage" stats
+
+*'''	FloatArray	'''
+bugfix in "from ushort" conversion
+
+11.8.2008:
+----------
+
+*'''	VID	'''
+added gpu vendorname, default disabled vbos for non ati/nvi
+
+*'''	l3dShadowModel	'''
+changed capping strategy and lowered max vertexcosts
+
+
+10.8.2008:
+---------
+
+*'''	GpuProg/VID	'''
+Cg 2.1 beta, removed GLSL manual fixes
+default of atism3 glsl to true
+
+20.7.2008:
+----------
+
+*'''	Particle	'''
+CAP_POINTSPRITES added to rescondition + capability
+
+*'''	Viewer	'''
+compatibility fixes
+
+18.7.2008:
+----------
+
+*'''	ParticleDraw	'''
+bugfixes with regular model drawing (introduced in 0.98)
+
+17.7.2008:
+----------
+
+*'''	ParticleDraw	'''
+split in multiple functions
+
+*'''	ALL	'''
+major cleanup on removing most uint (to get rid of "compare signed/unsigned")
+enum32 type for flags/types
+
+5.6.2008:
+---------
+
+*'''	l3dprimitive	'''
+.size also changes bbox now
+
+4.7.2008:
+---------
+
+*'''	Window	'''
+bugfix in getPos when in fullscreen, getPos always returns position BEFORE fullscreen
+was activated. (or if not fullscreen then queries directly)
+
+
+23.6.2008:
+----------
+
+*'''	L3dlinkl2d	'''
+major bugfix (memory corruption), removed Ref_assigned/unassigned
+and removed l3dfree() inside l2dfree, as gc takes care of that
+
+*'''	Reference	'''
+Reference_assigned/unassigned dont seem to work as intended
+
+
+20.6.2008:
+----------
+
+*'''	ExtMath	'''
+bugfix ExtMath.v3sub was not set
+
+
+19.6.2008:
+----------
+
+*'''	Frontend	'''
+osGetVideoRam added, capability.vramsize
+
+*'''	Profiling	'''
+more info about surface memory used by app (renderbuffers)
+
+14.6.2008:
+----------
+*'''	IModel,F3DExporter	'''
+added localmirrors generator
+
+
+
+13.6.2008:
+----------
+
+*'''	StaticArray	'''
+staticarray.resize crashbug if newsize < oldsize due to content preserving 
+now only copy old if new > old
+
+
+12.6.2008:
+----------
+
+*'''	FXUtils	'''
+FXUtils.applyMaterialTexFilter supports displaying subrectangle of texture
+
+11.6.2008:
+----------
+
+*'''	Mesh/Shader	'''
+texchannel4 = 0&1 combine, texchannel5 = 2&3 combined
+
+10.6.2008:
+----------
+
+*'''	Slider	'''
+setSliderPos(... force) force was ignored
+
+*'''	Window	'''
+screen2ref & ref2screen
+
+7.6.2008:
+---------
+
+*'''	IModel	'''
+again fixes and tweaks in build setup
+removed "free" func in IModel as it isnt used anyway
+
+*'''	luxf3d	'''
+removed mesa rendering and alike, make lua lib version
+used ring pool allocator for IModel
+fbx version raised
+
+4.6.2008:
+---------
+
+*'''	ImageComponent	'''
+bugfix in getL2DImage
+
+1.6.2008:
+----------
+
+*'''	IModel, F3DExport '''
+added localmirrors options for local space normalmap mirroring on double uvs.
+and cleaned up solution
+
+*'''	Matrix44Interface	'''
+refactored a bit for easier "outsider" useage, and removed unused functionality
+
+30.5.2008:
+----------
+
+*'''	Window	'''
+window.screensizemm and window.screensize
+window.resizemode 3 taking window.resizepixelscale into account (which uses active screen ratios)
+
+29.5.2008:
+----------
+
+*'''	Input	'''
+lower-case commands for consistency that "coreapi" is lower case
+
+28.5.2008:
+----------
+
+*'''	Mouse	'''
+bugfix with input.popMouse
+
+*'''	Luxina/GLFW..	'''
+added ClientToScreen / ScreenToClient
+
+*'''	GLFW	'''
+bug in GetWindowPos
+
+*'''	GuiHelpers	'''
+popupYesNo added
+
+
+27.6.2008:
+----------
+
+*'''	luaavi	'''
+bugfix in delete/create
+
+
+26.5.2008:
+----------
+
+*'''	ODE/Collision	'''
+removed "masstranslate"
+restructured hierarchy
+
+
+23.5.2008:
+----------
+
+*'''	Visual Studio 2005 / Libraries	'''
+lots of work to change towards msvc8
+also update LuaJit to 1.1.4
+and Ode to 0.9, ode change will need extra work (body mass must be centered at origin)
+
+*'''	SSE1 enforced	'''
+ode.dll and luxinia.dll will be compiled with SSE1 as minimum
+
+
+21.5.2008:
+----------
+
+*'''	LUX_NOOP	'''
+define to prevent certain functions to be run. useful for mass commenting codepath depending
+on build (e.g LUX_PROFILING_OP(...))
+
+
+20.5.2008:
+----------
+
+*'''	Input	'''
+major bug in input queue solved, can cause crashes related to windowskey+key. reported by Arno ;)
+
+18.5.2008:
+----------
+
+*'''	SHD/PRT/MTL	'''
+Annotation system added
+
+17.5.2008:
+----------
+
+*'''	Animation/MA	'''
+added loaderprescale analog to model
+
+*'''	Shader	'''
+removed "normalize" for normalmaps, better let user decide.
+
+15.5.2008:
+----------
+
+*'''	Texture/Resmanager	'''
+changed behavior for default textures,
+when no texture loader type is found, then default texture is returned.
+if load fails the current texture also becomes a default.
+
+*'''	UtilFunctions	'''
+UtilFunctions.color4byte didnt exist (only in doc)
+
+*'''	Model / IModel2Model	'''
+loaderprescale(x,y,z) added for bone's pos and vertices
+
+*'''	L3DView	'''
+g_Draw.camAxis only for defaultcam views
+
+11.5.2008:
+----------
+
+*'''	Draw_PText/l2dtext	'''
+removed the \vt special string for changing tabwidth.
+instead l2dtext:tabwidth was added
+Label:set/getTabWidth was added as well as 
+Skin2D:setLabelTabWidth
+
+10.5.2008:
+----------
+
+*'''	Draw_PText/List2DText	'''
+added textbounds check to do lineskipping
+
+
+9.5.2008:
+---------
+
+*'''	renderbuffer/renderfbo	'''
+bugfix to renderfbo windowsized
+renderbuffer:setup now returns self on success
+and renderbuffer.new also takes setup args
+
+
+8.5.2008:
+---------
+
+*'''	GuiHelpers	'''
+finished two new functions and their workflow for layout management
+GH.makeLayoutFunc and GH.frameminmax
+
+*'''	FXUtil	'''
+texfilter got a final bias (needed for edge detection filters)
+
+*'''	l3dview	'''
+rcmdadd got optional "as first" adding
+
+6.5.2008:
+---------
+
+*'''	Mesh	'''
+split meshvertex.h from mesh.h so that meshvertex.h can be easily
+bundled with dll header
+added indexPtrs and vertexPtrs to mesharray interface
+
+*'''	Texture	'''
+anisolevel can be manually set
+
+*'''	Parser	'''
+bugfix with comments in "parseMain"
+
+
+4.5.2008:
+---------
+
+*'''	SceneNode	'''
+bugfix worldmatrix returned error when shouldnt
+
+
+3.5.2008:
+---------
+
+*'''	Texture	'''
+return as binary string, also dual binstrings for splitting alpha (useful for wx)
+
+2.5.2008:
+---------
+
+*'''	wxLuxinia	'''
+lots of fixes, more solid now
+no fullscreen, no msaa, no mouse cursor hiding
+
+
+29.4.2008:
+----------
+
+*'''	wxLuxinia	'''
+got a prototype running
+
+28.4.2008:
+----------
+
+*'''	Window/rendersystem	'''
+push/popGL calls in case user does custom window management
+
+27.4.2008:
+----------
+
+*'''	wxLua	'''
+recompiled to support GLCanvas
+
+*'''	luxinia_lua	'''
+added description about functions
+
+*'''	luxinia.dll	'''
+removed dead enum defines from header
+
+26.4.2008:
+----------
+
+*'''	luxinia_lua frontend	'''
+first version finished, a bit critical
+is window termination at the end.
+
+*'''	Render	'''
+rendersystem.swapinterval for vsynch control
+
+25.4.2008:
+----------
+
+*'''	Frontend/LuaCore	'''
+LuaState is passed from frontend
+frontend can be queried for allocation stats
+
+*'''	Frontend	'''
+split to _glfw, _lua, shared
+
+*'''	Window	'''
+external window support removed (hacky and unneeded)
+
+23.4.2008:
+----------
+
+*'''	MTL/SHD/PRT	'''
+parser now has C style commenting // and /* ... */
+better for third party lexers, raised version numbers
+removed GLSL from SHD, will wait for Cg 2.0 fix first
+
+*'''	SHD/VID	'''
+renamed VID_NORMALMAP to VID_NORMALMAPTAN for precision
+
+22.4.2008:
+----------
+
+*'''	GUI	'''
+TreeView preparation
+
+16.4.2008:
+----------
+
+*'''	GUI	'''
+reposition of filedialog if frames were attached
+Rectangle:merged() to get enclosing Rectangle
+
+*'''	Frontend	'''
+"userdocs","userappdata","commondocs","commonappdata" as queries for osPaths
+
+
+14.4.2008:
+----------
+
+*'''	Matrix34	'''
+born for skinMatrices, actually not really needed but save a few bytes
+
+12.4.2008
+---------
+
+*'''	GLSL	'''
+in preparation GpuProg VIDType is ARB,FIXED or GLSL, CG hints were removed
+as we do enable/disable manually anyway
+
+1.4.2008:
+---------
+
+*'''	FBBlit '''
+added rcmdbufferblit
+
+*'''	FBRenderBuffer	'''
+added multisampling support
+
+*'''	L3DView	'''
+removed disabling of multsampling, as its ignored by most drivers anyway
+
+
+31.3.2008:
+----------
+
+*'''	FBObject	'''
+added windowSized automatic resizing
+lots of fixes around read/draw buffer
+
+*'''	RCMDFbo	'''
+fbobind can change viewport or not
+
+30.3.2008:
+----------
+
+*'''	List3D/VID	'''
+drawbufferWidth/drawbufferHeight next to windowWidth & Height
+no more changing viewportbounds stuff in fbobind/unbind
+illegal to use viewports exceeding fbo
+
+*'''	FBObject	'''
+replaced rcmdfbo, now renderfbo and rcmdfbobind class
+needed as blit extension needs read/drawbuffer
+
+*'''	RCMDFbo	'''
+most fbo related commands now have "read or drawbuffer" target
+
+
+24.3.2008:
+----------
+
+*'''	List3D/VisObject	'''
+setid of visobject becomes -1 once it has no vis/node children anymore
+
+*'''	L3Dview	'''
+bugfix, default now is windowsized again
+
+*'''	VID RenderFlag	'''
+global renderflag contains full 32bit range (even non -state change)
+else would introduce bugs, such as fxlight issue
+
+*'''	List2D Debug	'''
+render.drawtexture support for rectangle textures
+
+*'''	Draw3D/VID/SkyBox	'''
+bugfixes around skybox rendering
+and also l3dnode:parent function
+both introduced in 0.98
+
+*'''	FXUtils	'''
+added getCubeMapCameras
+
+23.3.2008:
+----------
+
+*'''	StaticArray	'''
+pubbed dataptrs similar to texturedata
+
+
+22.3.2008:
+----------
+
+*'''	PubMatrix4x4	'''
+renamed from PubMatrix16
+
+*'''	Project	'''
+project-storage paths added for "pathlog","pathscreenshot","pathconfig"
+the latter is used for config.lua and projecthistory.lua
+
+
+
+10.3.2008:
+----------
+
+*'''	ResData	'''
+core allocated chunk much smaller (minimal size)
+removed "terrain" from core, as it wasnt allocated there anyway
+removed "double" "white image" from Component.lua
+reschunk.create now optionally with kilobytes, overflow check for reschunk name
+
+*'''	Buffer Pool	'''
+
+
+*'''	CommandLine	'''
+--l3dconfig/-l l3dsets;layers;maxlayerdraws;maxtotalprojs
+--memconfig/-m bufferMB;resdefaultMB
+
+*'''	LuaCore	'''
+added profiling check for memory consumption
+
+5.3.2008:
+---------
+
+*'''	VisTest	'''
+efficient re-compression of rmempool, once results are there
+
+*'''	Mem Pool	'''
+collapsed buffer/render pools
+still using different macros so, just in case I need to revert to split useage
+pool is also resizeable on large allocs (typically texture/framebuffer read stuff)
+
+
+4.3.2008:
+---------
+
+*'''	Profiling	'''
+LUX_PROFILING_OP should lead all profling related commands,however lux must be able to work without
+this codeline
+more stats, also for VBOs and DisplayList approx
+
+*'''	List3D	'''
+some "high risk" memory optimizations can be applied
+l3dlist.maxdrawsperlayer max drawnodes per layer can be changed at runtime
+l3dlist.maxtotalprojectors max sum of all projectors per surface can be changed at runtime
+l3dlist.rendermempoolsize, poolsize can be changed at runtime (high risk)
+
+*'''	MemoryStack	'''
+protected all rpool calls with worse case approximation
+to make sure we never leave rpool
+
+
+3.3.2008:
+---------
+
+*'''	Profiling	'''
+added a common profiling struct that contains all data related
+to profiling
+
+
+*'''	List3D / VisTest	'''
+Each Visobject can only be bound to one l3dset, the first linkinterface call
+determines which.
+
+Changing of l3dset while linked is no longer allowed
+
+linking l3d->l3d of different setIDs is also disallowed
+
+
+2.3.2008:
+---------
+
+*'''	Clean Up	'''
+packed various floating statics into structs
+
+1.3.2008:
+---------
+
+*'''	FXUtils	'''
+new helper class for setting up effects in lua
+added applyMaterialTexFilter
+
+
+
+28.2.2008:
+----------
+
+*'''	Material	'''
+bugfix with shader parameters & control stuff
+
+
+27.2.2008:
+----------
+
+*'''	File Parser	'''
+added Cg "define" check next to resource condition for preprocessor branching.
+That way the same shd/mtl file can be loaded with different codepaths more easily.
+
+*'''	FP Texture	'''
+added "formattype" string return
+
+*'''	Frontend - Browser Plugin	'''
+mozilla codebase added
+
+14.2.2008:
+----------
+
+*'''	CgC String	'''
+enforced "-po ATI_draw_buffers" cause ATI doesnt like ARB_draw_buffers
+
+*'''	VID	'''
+added rendersystem.cgdumpbroken and .cguseoptimal
+
+13.2.2008:
+----------
+*'''	ResData	CgC String	'''
+bugfix in concat function
+
+
+12.2.2008:
+----------
+
+*'''	Texture	'''
+texture.create2drect for explicit rectangle textures
+
+
+7.2.2008:
+---------
+
+*'''	Frontend/Luxinia	'''
+the splash logo texture and small logo are queried via CustomString from the frontend
+also the maximum time the splash is show, and the background color is done that way.
+The "fade out" effect was removed...
+
+*'''	Frontend	'''
+changed build setup to allow multiple - "WinMain" non-console applications as host to luxinia
+with built-in startup parameters
+
+
+6.2.2008:
+---------
+
+*'''	Frontend/Luxinia	'''
+added LUX_KEY_APPEXIT to react towards window exits
+added system.queryfrontend(string) to be able to query frontend specific data
+
+31.1.2008:
+----------
+
+*'''	LuxWindow/Luxinia	'''
+added GetWindowPos also published, and auto stored
+also bugfix with storing of "tables" in config saver
+
+
+24.1.2008:
+----------
+
+*'''	File Parser	'''
+the resource-scripts now have proper block commenting with #{...}#
+
+20.1.2008:
+----------
+
+*'''	DrawMesh/Node	'''
+changed drawtype "ifs" to mathexpression type += (expr) * typeshift
+
+*'''	VID	'''
+g_Draws.notexture only for LUX_DEVBUILD
+
+*'''	Material/Shader	'''
+"shadername.shd^cgcstring" added for mtl/material:auto strings
+bugfixes around unique loading of them
+
+19.1.2008:
+----------
+
+*'''	Draw_PText	'''
+renamed glPrint to Draw_PText / PText depending on functionality
+
+*'''	Draw3D	'''
+changed matrices upload to push/pop for each worldmatrix,
+requires less uploads
+
+18.1.2008:
+----------
+
+*'''	CGparam	'''
+FPubbed the connector mechanism (untested)
+
+*'''	Shader	'''
+SHADER_PARAM_TEXLMSCALE added
+"PRTlmtexgen" Parameter added for lightmap texgen 
+"PRTglobalaxis" changed to float4x3
+
+
+12.1.2008:
+----------
+
+*'''	L3DView	'''
+changing to "windowsized" in a rcmddrawmesh is not possible anymore, all coordinates are now in
+viewport coordinates.
+
+*'''	GpuProg	'''
+load Cg precompiled via FS_open
+getGL also grabs compiled string for Cg
+
+*'''	FPub System	'''
+screenshot func now can do a rectangle, and bugfix with rescale func
+
+6.1.2008:
+---------
+
+*'''	Cg	'''
+dumpallcompiled added 
+
+*'''	Fpub	'''
+screenshot func bugfix
+
+5.1.2008:
+---------
+
+*'''	Shader	'''
+added TEXSIZE / TEXSIZEINV parameters
+
+*'''	LuxiniaOS	'''
+added MACaddress getter
+
+4.1.2008:
+---------
+
+*'''	Shader / Draw ... '''
+lots of bugfixes around CG 2.0
+
+
+1.1.2008:
+---------
+
+*'''	Shader/GLPass	'''
+added new GLPass_activate for CG
+
+*'''	GpuProgram	'''
+shared parameters spread among user groups
+CGprogram:annotation stores resRID of GpuProg
+
+*'''	VID	'''
+global cg connector parameters
+
+
+
+31.12.2007:
+-----------
+
+*'''	GpuProgram/Shader	'''
+handling of program delete/reinit
+storing connected cgparams in GpuProg
+
+*'''	Shader	'''
+lowCgProfile flag
+
+
+
+30.12.2007:
+-----------
+
+*'''	GpuProgram	'''
+GLSL find sampleruniform names, to manually fix TEXUNIT
+
+*'''	VID	'''
+enable/disable GPUProgram Profiles recoded, added VID_CG_GLSL as special case
+doing manual GL calls now
+arbProfiles for simple CgPrograms, arbProfiles can be overridden using forceGLSL
+
+*'''	Shader	'''
+gpu programs in techs < SM3, are loaded with "arbProfiles"
+
+
+28.12.2007:
+-----------
+
+*'''	Draw2D	'''
+removed glMatrices
+
+
+27.12.2007:
+-----------
+*'''	VID/Draw3D	'''
+refactored / INLINEd stuff for better code structure
+LUX_VID_COMPILEDARRAY enables support for compiled vertex array (which is deprecated by VBOs today), but may be useful for
+other/older hardware
+
+
+26.12.2007:
+-----------
+
+*'''	Shader	'''
+SHD preparation / global cg Parameters for Cg handling
+SHD raised fileversion
+
+
+24.12.2007:
+-----------
+
+*'''	Shader/VID	'''
+LUX_VID_GEOSHADER added to enable geometry shader support
+ideally geometry shader as for "multi cubemap" rendering should be similar
+to a baseshader effect as "toggle", next to the "built-in" geometry shader of a Shader
+
+23.12.2007:
+-----------
+
+*'''	Shader/VID	'''
+Cg 2.0 is now used
+this will need various changes (no longer state.matrices for Cg shaders !!)
+
+*'''	Draw	'''
+world worldviewproj and so on matrices are now internally tracked
+ortho mode as "push" matrix now uses vidOrthoOn/Off
+
+
+23.11.2007:
+-----------
+
+*'''	Texture	'''
+USHORT datatype (untested)
+
+*'''	StaticArray	'''
+USHORT ARRAY
+also bugfix in resize func (ubytes would have caused crash)
+
+13.11.2007:
+-----------
+*'''	L2Dnode	'''
+parent(any) was buggy
+
+12.11.2007:
+-----------
+*'''	Max Exporter	'''
+64-bit
+
+*'''	Luxinia	'''
+moved all OS dependent calls into frontends
+
+11.11.2007:
+-----------
+*'''	Math	'''
+fixes in quaternion once and for all
+
+10.11.2007:
+-----------
+
+*'''	L3D	'''
+novistest for l3dchilds as well.
+
+30.10.2007:
+-----------
+*'''	VID	'''
+MODULATE2 as blendmode (self*dest*2), can be used to darken/brighten depending on self <0.5/>0.5
+
+21.10.2007:
+-----------
+*'''	List3DPrimitive	'''
+bounding box fix for cylinder and sphere radius
+
+
+20.10.2007:
+-----------
+
+*'''	Camera	'''
+.viewmatrix()
+
+*'''	Shader	'''
+nomipmap
+
+5.10.2007:
+----------
+
+*'''	L3D Draw	'''
+killed twosided stencil workaround for layer drawing, just makes stuff too ambigous
+instead scEnabled(state,sides) was added
+
+
+3.10.2007:
+----------
+
+*'''	L3DView	'''
+activate supports more control
+
+*'''	Shader	'''
+bugfix in param array set (started with passing offset as x)
+
+*'''	L3DDraw	'''
+fbotest bug with texassignment corruption
+
+29.9.2007:
+----------
+
+*'''	Resources.create	'''
+renamed some .new/load funcs in resource creation to "create" for consistency
+
+*'''	Model	'''
+bugfix in mesh creator for using int indices on big vertexcounts.
+
+20.9.2007:
+----------
+
+*'''	L3D/Sys	'''
+system supports frame / l3d.lastframe
+
+
+16.9.2007:
+----------
+
+*'''	Particle	'''
+on window push/pop GL we also need to reinit particle meshes + make sure offsets are reuploaded
+
+*'''	VisObject/L3DNodes	'''
+two lists, vislist and nodeslist needed to make sure on visobj delete all linked children get
+the message
+
+
+14.9.2007:
+----------
+
+*'''	De Init	'''
+add to split some free/deinit functions to make gc work (most times namespaces were freed before doh!)
+
+*'''	Viewer	'''
+made resizable and memorizes path within a session
+
+
+
+
+13.9.2007:
+----------
+
+*'''	Camera/Projector	'''
+removed glgets for cam/proj matrices, also allow custom proj matrices for both
+
+*'''	L3D/L2DNode	'''
+bugfixes with refernce handling of children (introduced 97)
+
+*'''	Particle	'''
+had to change particle updating back to the way it was, but drawing now supports layered drawing
+
+12.9.2007:
+----------
+
+*'''	Particle	'''
+subsystems are drawn/updated indpendent (except if combinedraw is used)
+this allows greater control for rendering
+
+*'''	L3DView	'''
+filldrawlayers command added to allow disabling
+
+11.9.2007:
+----------
+
+*'''	Particle Emitter	'''
+subsystem paremeter access
+subsystem offset scaling thru renderscale
+
+9.9.2007:
+---------
+
+*'''	Material	'''
+texcontrols added, support for matobject textureID overrides
+
+8.9.2007:
+---------
+
+*'''	Material/Shader	'''
+added support for array parameters
+more error checking on shader & matcontrol ids
+
+*'''	ResourceSubID	'''
+hostinfo for all types
+
+4.9.2007:
+---------
+
+*'''	Material/Shader	'''
+lots of bugfixes regarding matcontrols/shaderparam matcontrols
+
+*'''	Texture	'''
+sampling func now matches GL
+
+*'''	Window	'''
+minimum size for reshape added
+
+
+20.8.2007:
+----------
+
+*'''	Window	'''
+allowing manual reshape (delayed update of winsized textures)
+
+
+19.8.2007:
+----------
+
+*'''	Particle	'''
+chasing bugs that are none... still made it possible to switch
+between old style dynparticle iterator
+also bugfix in resmanager (introduced in 0.97) not using mipmaps for particle textures
+
+*'''	Shader/Particle	'''
+cg parameters are set before bind
+
+
+17.8.2007:
+----------
+
+*'''	rcmd copytex	'''
+added autosize
+
+*'''	Shader	'''
+fixed bug in texcombiner-string
+
+
+16.8.2007:
+----------
+
+*'''	Math	'''
+quaternion bug/problem
+quats are "transposed" of normal ones
+
+*'''	L3DNode	'''
+lookat bugfix
+
+*'''	 LUXINIA DLL	'''
+finally, the split between engine/frontend was made
+internal function blah
+
+15.8.2007:
+----------
+
+*'''	Luxinia	'''
+prepared some stuff for external/glfw like window manager
+kicked keyin
+
+
+14.8.2007:
+----------
+
+*'''	L3DView	'''
+rcmdadd supports "before" as well
+
+*'''	Texture	'''
+fullwindow 16/32 bit float bugfix
+
+
+8.8.2007:
+---------
+
+*'''	L3DView	'''
+rcmdadd now supports insertion "after" another rcmd
+
+*'''	Shader	'''
+bugfix in camdir autovalue
+
+
+5.8.2007:
+---------
+
+*'''	GPU Programs	'''
+fix for maxbones on cards with more constants than original spec allowed
+
+*'''	Model	'''
+model.create bugfix for meshobject allocation
+
+26.7.2007:
+----------
+
+*'''	L3D	'''
+added Lookat support
+
+22.7.2007:
+----------
+
+*'''	Matrix4444	'''
+Aim function had bug with Z aiming, needed inversion (fix by Zet)
+
+21.7.2007:
+----------
+
+*'''	Trail	'''
+added funcs to check distances
+
+
+29.6.2007:
+----------
+
+*'''	FP Floatarray	'''
+added n-override for step array in all interpolators
+
+28.6.2007:
+----------
+
+*'''	FP	Math	'''
+added quat conversion funcs
+
+*'''	FP Geom	'''
+added matrix func
+
+27.6.2007:
+----------
+
+*'''	Shader	'''
+fixed crashbugs when gpuprog fails (introduced in 0.97)
+
+
+26.6.2007:
+----------
+
+*'''	LuaCore '''
+allocator does memset0 for debug msvc compile, to fix bugs
+
+25.6.2007:
+----------
+
+*'''	3dsmax f3dexporter	'''
+changed objecttm to nodetm export, easier to get same "visible values" in
+outputs (untested with remove scale & biped)
+
+23.6.2007:
+----------
+
+*'''	Model	'''
+bugfix with morphable modelobjects
+
+*'''	MatObject	'''
+caused a crashbug with reference system
+
+*'''	l3dCamera	'''
+bugfixes that were caused in the transition phase
+
+
+22.6.2007:
+----------
+
+*'''	VID	'''
+changed attrib6 to 14 and attrib7 to 15, so they match texcoord6 and texcoord7,
+which are available under GLSL, too.
+
+*'''	Shader	'''
+added support for combined Cg programs,
+needed for GLSL
+
+21.6.2007:
+----------
+
+*'''	FP RenderSystem	'''
+added class that now contains all rendering system stuff,
+functions from Render & System class
+
+*'''	Cg 1.5 Feb 2007	'''
+migrated
+
+*'''	GpuProg	'''
+compilerargs for GLSL and SM3
+"|compiled" in entryname allows precompiled Cg shaders
+
+
+19.6.2007:
+----------
+
+*'''	Shader	'''
+added flags for depht or no deptcompare in stage
+
+*'''	FPub Camera	'''
+toview function
+
+*'''	FPub VertexArray	'''
+added support for vertex16color
+
+
+18.6.2007:
+----------
+
+*'''	Render	'''
+the reason for the major speed drop from 0.95 to 0.96 was a glFinish in front of swapbuffers...
+however this was needed for a bug, I dont remember. Anyway its toggleable by render.forcefinish now
+whilse pgraph.renderfinish is used for profiling
+
+
+14.6.2007:
+----------
+
+*'''	FPub Window	'''
+return matrix4x4 of fullwindow textures
+
+*'''	RCMD	FBO/Draw2D	'''
+bugfixes around fbo & draw2d stuff
+
+6.6.2007:
+---------
+
+*'''	TGA	'''
+8-bit grey support
+
+
+30.5.2007:
+----------
+
+*'''	FPub Window	'''
+window.res() returned nil at times
+
+*'''	SceneNode / l2dnode / l3dnode	'''
+parent function prevents gc of children
+
+29.5.2007:
+----------
+
+*'''	Texture	'''
+some cleanups/bugfixes regarind 3d textures
+also added tex->components for conveniance
+partial or externaldata uploading is possible now.
+
+
+26.5.2007:
+----------
+
+*'''	Material/Shader	'''
+added pass identifier for multiple instances of same parameter in shaders
+
+
+23.5.2007:
+----------
+
+*'''	FBO	'''
+fpubbed all fbo related commands
+
+*'''	Render push/pop	'''
+needed for all FBOs and RBuffers
+
+*'''	Texture	'''
+more types, had to allow internalformat setting before init
+also made windowsized an attribute
+had to fpub "textype" class, for more conveniance and error safeness
+makes all texture.create incompatible
+
+22.5.2007:
+----------
+
+*'''	List3D	'''
+function to check fbo setup
+
+21.5.2007:
+----------
+
+*'''	FPub Texture/Capability	'''
+added support for depthstencil and nonpowerof2 3d textures
+
+*'''	Texture	'''
+if no keepdata is set .create textures will not allocate memory anymore
+mipmapping can be enabled later (if automipmap exists)
+can do partial uploads from custom staticarray data
+
+*'''	StaticArray	'''
+Ubytearray was born
+
+20.5.2007:
+----------
+
+*'''	FrameBufferObjects	'''
+many fbo commands/internals done, todo fpub
+
+
+18.5.2007:
+----------
+
+*'''	ParticleSys	'''
+changed allocation to pure Array (no ptr array needed), which is slightly faster
+and allows more optimisations
+
+*'''	Viewer	'''
+updated to make it work with 0.97
+
+*'''	UtilFunctions.freelook	'''
+now works
+
+16.5.2007:
+----------
+
+*'''	RenderCommand	'''
+fpub finished
+
+*'''	Texture	'''
+tex.pixelbyte function added
+
+14.5.2007:
+----------
+
+*'''	Refactoring	'''
+kicked the internal double TYPE situation
+
+*'''	RenderCommand	'''
+execution should work, setup code todo
+
+
+13.5.2007:
+----------
+
+*'''	L3D Draw	'''
+most rendercommands are done
+
+*'''	FrameFX	'''
+removed...
+
+9.5.2007:
+---------
+
+*'''	L3DNodes	'''
+the "new" functions are all
+.new(name,[l3dlayerid],...) now
+affected: l3dmodel,l3dtrail,l3dtbterrain
+
+*'''	L3D Drawing Revision	'''
+l3dlayeropcodes are gone
+l3dview commandlist born
+
+*'''	FrameFX	'''
+removed ?
+
+6.5.2007:
+---------
+
+*'''	GpuProgram	'''
+Cg no longer supports virtual files !
+needed for include handling
+added compilerargs access
+
+
+27.4.2007:
+----------
+
+*'''	Camera	'''
+changed to l3dcamera
+
+*'''	Light	'''
+defaultsun now is l3dsun
+
+
+26.4.2007:
+----------
+
+*'''	ALL	'''
+objects that can have References now are enforced to have them, and most classes are GC'ed
+
+
+23.4.2007:
+----------
+
+*'''	Collision	'''
+added triangle array result for intersecting triangles
+
+*'''	List2D/List3DView	'''
+added possibility to draw List2D within l3dview (render-to-texture)
+
+
+22.4.2007:
+----------
+
+*'''	Model	'''
+bugfix in model.new (forgot to return + link bones)
+
+*'''	Shader	'''
+lightnormal/reflectmapX added
+
+*'''	FP MaterialAutoControl	'''
+finished
+
+*'''	L3DModel	'''
+bugfix in "usemanualworld"
+
+
+11.4.2007:
+----------
+
+*'''	Material	'''
+FPubed MaterialAutoControl
+
+10.4.2007:
+----------
+
+*'''	SkyDome	'''
+was kicked, replaced by a l3dnode that can be used as background instead.
+
+
+9.4.2007:
+---------
+
+*'''	Material	'''
+added TEXGENR to .mtl
+bugfix with matobject time in Material_update
+added MaterialAutoControl for parameters and stage texgen/texmat
+
+
+6.4.2007:
+---------
+
+*'''	Shader/Material	'''
+texgen can be set from material, too
+shader parameters & material controls take an upvalue
+
+5.4.2007:
+---------
+
+*'''	Shader	'''
+broke big functions into in more smaller functions
+removed manual texgens
+
+*'''	ALL	'''
+did some refactoring
+ResourceIDs should be RID, all others just ID or whatever
+also broke VID into some more structs
+
+28.3.2007:
+----------
+
+*'''	Texture	'''
+sample now supports cubemaps correctly
+
+
+27.3.2007:
+----------
+
+*'''	Texture	'''
+unified texture sample/pixel functions for all texture types
+
+
+15.3.2007:
+----------
+
+*'''	Window	'''
+ontop/multisample support (also patched GLFW)
+
+
+12.3.2007:
+----------
+
+*'''	Particle	'''
+forgot view ignore/forceflags
+
+
+11.3.2007:
+----------
+
+*'''	Particle	'''
+left lightmaps on
+
+*'''	Material	'''
+error in MATERIAL_AUTO: (always used first texture)
+
+*'''	Texture	'''
+did compress usertextures accidently
+
+
+10.3.2007:
+----------
+
+*'''	Material	'''
+special textures no longer throw an assert, but are just ignored when not available
+
+*'''	Resource	'''
+userstring
+
+*'''	SkyDome	'''
+bugfix on free
+bugfix on texturematrix left on from gui
+
+
+9.3.2007:
+---------
+*'''	Shader	'''
+compiler bugfix when Color Stage was followed by Texture Stage which
+was supposed to use vertexcolors generated by Color Stage
+also fixes with Color Stage used within NewPass Mechanism
+
+*'''	Texture	'''
+freesize error fix for combined textures
+
+
+27.2.2007:
+----------
+
+*'''	Texture	'''
+major rewrite
+split textype into type (which mostly resembles some special funcs and internalformats)
+and attribute
+
+support for float/hfloat textures
+
+*'''	DDS	'''
+added support for float textures
+
+
+--------------------------------------------------
+0.97 START
+--------------------------------------------------
+0.96 END
+--------------------------------------------------
+
+26.2.2007:
+----------
+
+*'''	render.noparticles '''
+fixed
+
+*'''	Camera	'''
+toworld fixed with lviews and non 640x480
+
+*'''	Viewer	'''
+small fixes
+
+
+23.2.2007:
+----------
+
+*'''	trail	'''
+fixed a issue with new introduced material normalizing
+
+
+*'''	Texture	'''
+special textures start with '?'
+
+*'''	Window / GLFW	'''
+luxinia now ships with an icon
+
+
+10.2.2007:
+----------
+
+*'''	FP	'''
+renamed "global" 2 "local" consistently
+renamed "link" to parent for l3d and l2d
+
+
+8.2.2007:
+---------
+
+*'''	List2D	'''
+bugfixes with l2dnode returns
+bugfixes with l2dnode free (without children)
+local2world and world2local
+renderflag interface for l2dflag fix
+
+*'''	Texture	'''
+NEAREST filter now works for ATI
+
+
+3.2.2007:
+---------
+
+*'''	IModel	'''
+bugfix in instancecreator
+
+*'''	IModel2Model	'''
+forgot boneobj for certain instance types
+
+
+31.1.2007:
+----------
+
+*'''	scOperation	'''
+backfaces didnt work (passing 1)
+
+*'''	F3D	Version 260	'''
+all "index,vertex" counts are stored as "UINT"
+primitive indices are stored as USHORT when less than MAX USHORT vertices are used
+F3D loader now uses UINT indices, as well if needed
+
+
+30.1.2007:
+----------
+
+*'''	l3dlayer	'''
+opcodes now enabled by l3dview
+
+29.1.2007:
+----------
+
+*'''	ffxsnap	'''
+bugfix for snapHeight (illegally used snapWidth)
+
+22.1.2007:
+----------
+
+*'''	Trail	'''
+bugfix in color submit
+
+*'''	Console / Pgraph	'''
+work better with window sizes > default
+
+
+8.1.2007:
+---------
+
+*'''	JPG	'''
+jpgsave also supports monochrome output
+
+7.1.2007:
+---------
+
+*'''	FP ResChunk	'''
+func to return all loaded resources of a type
+
+*'''	Material / Shader	'''
+func to check if a certain texture is contained
+
+
+6.1.2007:
+---------
+
+*'''	Texture	'''
+func to disable mipmapping
+floatarray stuff
+
+*'''	Viewer	'''
+painter
+
+
+5.1.2007:
+---------
+
+*'''	FP Camera	'''
+toWorld was wrong when l3dview was passed
+
+*'''	Viewer	'''
+collision for models
+
+
+
+2.1.2007:
+---------
+
+*'''	FP Trail	'''
+added tpNext/tpPrev
+added floatarray setters/getters
+trail also support a normalizedsize to make automatic uscale based on absolute length
+
+1.1.2007:
+---------
+
+*'''	GUI	'''
+bugfix in component.focustransfer
+imagecomponent got funcs to get/set matsurface
+rectangle got a func to retrieve closest edge
+component.contains adds own position, which is wrong, why ?
+
+29.12.2006:
+-----------
+
+*'''	FP StaticArray	'''
+split away the float functions to allow SSE path
+
+28.12.2006:
+-----------
+
+*'''	Texture	'''
+new2d supports rectangle textures and BGR format
+FPub support returning pointer
+
+*'''	VFWAVI	'''
+a lua library to decode AVI files, pass pointers to imagedata and it will
+memcpy the data there
+
+25.12.2006:
+-----------
+
+*'''	Shader	'''
+shaderparam for texstages now support lightdir/lightcolor
+
+
+23.12.2006:
+-----------
+
+*'''	Window/Texture	'''
+windowsized textures had wrong texmatrix (texmatrix set before init GL extensions)
+
+*'''	Shader	'''
+compiler for nopass_crossbar fixed when colorpass == 2, which resulted into wrong 
+double modulation with color
+
+19.12.2006:
+-----------
+
+*'''	Material	'''
+controllabes now can have an optional length parameter
+texmatrixcolum commands added
+
+
+16.12.2006:
+-----------
+
+*'''	GLFW	'''
+external window
+
+
+14.12.2006:
+-----------
+
+*'''	Texture	'''
+can force size on reload
+and we remember prescale size
+
+
+5.12.2006:
+----------
+
+*'''	Material	'''
+_fromstring had a bug when passing texture types like ...|TEX texturename.jpg|...
+
+*'''	Viewer	'''
+added method to assign shaders
+
+*'''	ComboBox	'''
+fixed a issue when parameters are out of display
+
+4.12.2006:
+----------
+
+*'''	Viewer	'''
+bugfix with camera orientation on reload
+bugfix with old animation load when new model is loaded
+added gui for swizzle luxf3d
+preserve controlmode on re/load
+added method to apply materials/textures on meshes
+
+*'''	LuxF3D	'''
+bugfix with logfile output
+
+3.12.2006:
+----------
+
+*'''	LuxF3D	'''
+enhanced .fbx / .dae import
+
+*'''	IModel	'''
+added Swizzling
+
+--------------------------------------------------
+0.96 START
+--------------------------------------------------
+0.95 END
+--------------------------------------------------
+
+23.11.2006:
+-----------
+
+*'''	ResManager	'''
+push/pop didnt connect Cg parameters
+resource_add: extraname wasnt stored properly
+
+*'''	PNG	'''
+loaded them flipped (d'oh!)
+
+11.11.2006:
+-----------
+
+*'''	LuxF3D	'''
+fixed .ms3d stuff (texcoords + texnames)
+added b3d, fbx..
+
+23.10.2006:
+-----------
+
+*'''	Viewer	'''
+added show/hide meshes
+
+*'''	FP Matrix4416	'''
+fixed a glitch with matrix multiplications if a = b * c , and b or c are also a
+
+
+12.10.2006:
+-----------
+
+*'''	Particle	'''
+_prepSystems had a bug lxListNode_add needs inited nodes !
+(bug introduced during .95 dev)
+
+*'''	Render	'''
+render.notextures showed no effect
+
+11.10.2006:
+-----------
+
+*'''	Shader	'''
+removed screenmatchstretched and changed normal screenmatch to it
+
+*'''	SkyDome	'''
+sunscreenmatrix is now fixed and fov independent
+
+*'''	Texture	'''
+TEXDOTZ was buggy for textures which do not have 64 as width
+
+10.10.2006:
+-----------
+
+*'''	Particle	'''
+fixes with materialobject free on mat change
+as well as fixes with texture matrix for instanced particles (non-gpu)
+
+*'''	VID	'''
+added a system.var for forcing 2 textureunits
+
+7.10.2006:
+----------
+
+*'''	DrawBonesNames	'''
+passed wrong matrix
+
+*'''	BoneSystem	'''
+updatetime was too inaccurate if speed was low (changed to float)
+
+6.10.2006:
+----------
+
+*'''	FP Model/Primitive	'''
+errors on matsurface get(model)/set(prim)
+
+2.10.2006:
+----------
+
+*'''	FP Model/Bone	'''
+animation evaluation into a model matrix cache
+
+
+*'''	Anim	'''
+minor changes, prepared some of the loopkey stuff but not used yet
+
+1.10.2006:
+----------
+
+*'''	FP Model	'''
+vertex/index copy funcs
+
+
+30.9.2006:
+----------
+
+*'''	FP Model	'''
+vertex triangle interpolater funcs + fixes
+
+29.9.2006:
+----------
+
+*'''	Shader	'''
+shd error, illegally turned all stages to TEX STAGES when first stage is COLOR STAGE
+
+*'''	Particle '''
+fixed lighting of instancemeshes and lightmap bugs
+
+*'''	FP Matrix4444	'''
+copy func
+
+*'''	FP Model	'''
+model.bbox transform
+
+28.9.2006:
+----------
+
+*'''	ParticleCloud draw	'''
+activeCur ptr was wrong when cloud wasnt drawn, reverted to
+the old mechanism that activecur is swapped at the end
+also changed iterators from popping, as that is not properly
+when multiple views exist
+
+*'''	Texture	'''
+updatedata can be more precise
+
+
+27.9.2006:
+----------
+
+*'''	Texture	'''
+getGL was buggy for cubemaps (did not offset properly)
+
+24.9.2006:
+----------
+
+*'''	FP Resource	'''
+getresname for Texture fixed
+
+*'''	Particle	'''
+bugfix with lightmapped + shader
+
+23.9.2006:
+----------
+
+*'''	Texture	'''
+loaddata didnt work
+
+
+22.9.2006:
+----------
+
+*'''	FP MatControl	'''
+bugfix with getters
+
+*'''	ExtMath	'''
+added spline funcs
+
+
+21.9.2006:
+----------
+
+*'''	FP TerrainDecal	'''
+FPubbed them
+
+
+20.9.2006:
+----------
+
+*'''	Texture	'''
+mipmap generation + normalization
+
+
+18.9.2006:
+-----------
+
+*'''	Viewer	'''
+bugfix with order of reloading stuff (geometry chunk last !!)
+
+*'''	ResManager	'''
+automaterials passing previous alternative directory 
+
+
+16.9.2006:
+----------
+
+*'''	LuxF3D / IModel	'''
+spent last days fixing normalmap/tangentspace
+added render function to convert local space
+normalmap to tangentspace
+
+
+13.9.2006:
+----------
+
+*'''	3DSMax	'''
+exporter uses new imodel
+MATERIAL_AUTO support
+
+*'''	Particle	'''
+optimized colormul, should/could do same
+for sizemul
+
+12.9.2006:
+----------
+
+*'''	LuxF3D / IModel	'''
+spent last days bugfixing IModel
+and animation support in imodel +
+.ms3d + .3ds animation for luxf3d
+
+*'''	FP PRSKey	'''
+GONE 
+
+*'''	ResManager	'''
+bugfixes with reloading
+must not ignore default texture
+must remember particle users
+
+*'''	ParticleSys/Cloud	'''
+rendered at end of layer
+
+*'''	List3D	'''
+less nodes per layer, but more layers
+
+11.9.2006:
+----------
+
+*'''	Debug Helpers	'''
+correctly use renderscale
+
+9.9.2006:
+---------
+
+*'''	3DMath	'''
+quaternion "fromMatrix" was wrong 
+also affects .md3 convertor
+
+8.9.2006:
+---------
+
+*'''	TBTerrain	'''
+fully customizeable in sizes
+
+*'''	Mesh	'''
+changed to allow use of unsigned ints as well
+
+6.9.2006:
+---------
+
+*'''	TBTerrain/Texture	'''
+Terrain can now operate with texture sizes based on first tiledef
+
+*'''	AutoDump	'''
+when F11 is pressed autodump is toggled
+
+
+5.9.2006:
+---------
+*'''	Particle	'''
+visflag & overrideshaderid support
+bugfix with vertex normals on particlegroup referencing
+
+*'''	List3DView	'''
+a visflag when defaultcam is used
+
+*'''	TBTerrain	'''
+bugfixes
+
+4.9.2006:
+---------
+*'''	GLShader/Shader	'''
+lots of bugfixes regarding normal mapping
+
+*'''	Material	'''
+definined multiple shaders per material crashed
+
+2.9.2006:
+---------
+*'''	GL_Particle	'''
+compiled VA for instancemeshing
+support for lightmaps
+
+*'''	VID	'''
+bugfix regarind display list useage of default meshes
+
+*'''	Shader	'''
+param support for texconst in texstages
+
+29.8.2006:
+----------
+
+*'''	VID	'''
+autoscreenshot function
+also screenshot saver faster for uncompressed using BGRA
+
+
+--------------------------------------------------
+0.95 START
+--------------------------------------------------
+0.94 END
+--------------------------------------------------
+
+25.8.2006:
+----------
+
+*'''	ShadowModel	'''
+stencil fixes
+
+*'''	Material/Shader/Particle	'''
+parser errors, too often wrong commands were chosen (strcmp accepted first substrings)
+
+*'''	VID	'''
+techniques changed a bit, else problems with "hierarchy"
+
+24.8.2006:
+----------
+
+*'''	Shader	'''
+raised max to 126
+
+*'''	Draw3D	'''
+sortid changed a bit
+
+*'''	Material	'''
+Auto material from name string
+
+*'''	List3DDraw	'''
+force/ignore flags for background drawing
+
+
+23.8.2006:
+----------
+
+*'''	Texture	'''
+packing to channels
+
+*'''	TGA	'''
+8 bit loading/saving
+
+
+18.8.2006:
+----------
+
+*'''	IModel	'''
+IPrimitives do the indexing of vertices
+this way we can remove unused vertices right at start
+
+*'''	LuxF3D	'''
+bugfix in optimize as unused vertices crashed it
+latest f3d version was not supported on load
+
+pluggable as lua lib
+
+
+
+16.8.2006:
+----------
+
+*'''	List3D	'''
+added world matrix access
+
+*'''	VID	'''
+detecting software arb_vertexprograms
+added new Technique
+
+*'''	Texture	'''
+Swapping content
+
+15.8.2006:
+----------
+
+*'''	List3DView / Draw3D	'''
+baseshaders bugfix, outside of l3dlayer drawing no baseshaders are used.
+
+*'''	FrameFX / List3DView	'''
+a visibility flag to kick framefx in certain views.
+
+*'''	Texture	'''
+added PHONG/DIFFUSE
+
+14.8.2006:
+----------
+
+*'''	ResourceBO	'''
+now part of pop/pushGL when fullscreen is toggled
+
+*'''	Screenshot	'''
+now stores TGAs with alpha
+checks for last saved screenshot
+FP screenshot no longer adds /screenshot
+
+*'''	Control	'''
+saves old matrixIF pointer, and properly sets start rotation
+
+12.8.2006:
+----------
+
+*'''	ShadowModel	'''
+manual extrusion length
+
+11.8.2006:
+----------
+
+*'''	List3DView	'''
+background rendering now optionally
+
+*'''	FrameFX	'''
+FFXClear can do background rendering
+
+*'''	Mesh	'''
+display list id no longer overwrites vboid
+
+
+10.8.2006:
+----------
+
+*'''	Material/ Shader / Particle	'''
+unified the parser,
+parser now supports IF,ELSEIF,ELSE
+
+
+9.8.2006:
+---------
+
+*'''	Trail	'''
+changing point values now recompiles trail
+
+*'''	Shader	'''
+bugfix in NewPass mechanism (wrong blendmodes for textures)
+
+
+8.8.2006:
+---------
+
+*'''	Projector	'''
+no longer limited to 4, but all 32 projectors can be used
+
+
+7.8.2006:
+---------
+
+*'''	Projector	'''
+scissoring for small projector frustums in multipass
+also kicking invisible projector passes
+
+*'''	Animation	'''
+playback still used pointers instead of ResData_get
+
+6.8.2006:
+---------
+
+*'''	FP TexCombiner	'''
+published the needed functions
+
+
+*'''	Shader	'''
+alphaTEX also reads texcoord channel
+
+*'''	Projector	'''
+now takes care of alphaTEX
+
+*'''	VID	'''
+full combine4 wrapper for alpha modes
+
+*'''	Camera/Projector	'''
+more accurate bounding box creation
+however introduced a bug with ortho projector (OcTree)
+
+*'''	SceneTree	'''
+bugfix with linked nodes
+
+5.8.2006:
+---------
+
+*'''	VID/Shader	'''
+added rgb/alpha scaling (1,2,4)
+
+*'''	Texture	'''
+has a lightmapscale property 
+
+
+1.8.2006:
+---------
+
+*'''	VID/Shader	'''
+blend/alpha modes now stored in a map, user can create his own combiners.
+
+
+31.7.2006:
+----------
+
+*'''	SkyDome	'''
+finished, however the automatic mesh is not suited for cloud rendering,
+thats why a model/mesh combination was added
+
+29.7.2006:
+----------
+
+*'''	SkyDome	'''
+rendering setup added
+
+*'''	Shader/Material/Texture	'''
+texture clamping can be defined more precisely
+
+*'''	Shader	'''
+texgen modes eye/objlinmap need proper planes now
+
+
+28.7.2006:
+----------
+
+*'''	SkyDome	'''
+added 
+
+*'''	FNPublish	'''
+getArg functions clamp at argcount
+
+
+26.7.2006:
+----------
+
+*'''	List2D	'''
+matrix local used for l3d in l3dlink 
+
+*'''	List3D	'''
+setlayer bugfix (numnodes was wrong)
+link -> child gets parent setID
+
+
+24.7.2006:
+----------
+
+*'''	PNG	'''
+png loader added
+
+*'''	Draw List3DDraw	/ Camera'''
+sortRID type is gone, but 2 flags introduced
+skinned/far. Far means that a drawnode was further away
+than a given percentage of backplane and that way is rendered later.
+this makes more use of rendering nodes very close to camera to help 
+early z kicking.
+
+
+23.7.2006:
+----------
+
+*'''	ResManager	'''
+added ResourceBO (BufferObject)
+each ResourceChunk has its own VBO/IBO list
+that is filled with the model's data
+
+
+22.7.2006:
+----------
+
+*'''	LuxF3D	'''
+bugfixes with .bsp
+
+*'''	LevelModel	'''
+added optimisation for chunks
+
+*'''	SceneNode	'''
+another bugfix for levelroot visobject
+
+
+21.7.2006:
+----------
+
+*'''	LevelModel	'''
+final touches and FPub
+
+*'''	LuxF3D	'''
+.bsp fixes with lightmap ids
+
+*'''	SceneNode/VisTest	'''
+root scenenode never visible
+
+20.7.2006:
+----------
+
+*'''	LevelModel '''
+basics
+
+*'''	ResTexture	'''
+.any for testing various file extensions
+(.dds, .jpg, .tga)
+
+
+18.7.2006:
+----------
+
+*'''	LuxF3D	'''
+.bsp conversion
+
+
+16.7.2006:
+----------
+
+*'''	LuxF3D	'''
+added .obj / .3ds
+
+
+13.7.2006:
+----------
+
+*'''	ParticleGroup	'''
+l3dpgroup removemulti fix
+
+*'''	l3dnode	'''
+renderscale return
+
+*'''	floatarray	'''
+lit bugfixed
+
+*'''	particle group	'''
+default color taken from container
+rotvar toggle colorvar
+
+12.7.2006:
+----------
+
+*'''	L3DView	'''
+added polygonoffset
+
+
+*'''	Particle	'''
+switching between instanced or batched geo
+
+--------------------------------------------------
+0.94 START
+--------------------------------------------------
+0.93 END
+--------------------------------------------------
+
+9.7.2006:
+---------
+
+*'''	ShadowModel	'''
+fixed the bug with the zfail technique, didnt transform the boundingsphere center, doh !
+
+
+
+7.7.2006:
+---------
+
+*'''	ParticleCloud	'''
+Particle removemulti, based on various flags you can mass remove static particles
+static particles are now combined to pointer lists for their active particles, like
+particlesys does
+
+*'''	Particle Render	'''
+fixed bug in gpu program with globalaxis instances
+also fixed bug with non vprog globalaxis meshes/models
+
+6.7.2006:
+---------
+
+*'''	List3D	'''
+update props did have issues with invalid references,
+update_up_recursive does check for valdity now
+
+*'''	Camera	'''
+reflection
+
+*'''	FP Scenenode	'''
+vistestbox error
+
+5.7.2006:
+---------
+
+*'''	List2D	'''
+scissor handling for parents and local scissor
+
+
+4.7.2006:
+---------
+
+*'''	List2D	'''
+tree structure as l3d, better for gui
+
+
+3.7.2006:
+---------
+
+*'''	Texture	'''
+FP getdata / getGL
+
+*'''	FP VertexArray	'''
+texture uv coords from tris + barycentric
+
+2.7.2006:
+---------
+
+*'''	Shader	'''
+parser did not use layer command
+added alphaTEX
+
+
+1.7.2006:
+---------
+
+*'''	Texture	'''
+resizeable user tex
+added memory useage stats
+
+*'''	MiscString	'''
+small func to generate , separated strings for big ints 
+
+30.6.2006:
+----------
+
+*'''	Material	'''
+bugfix with texmove controllables/modifiers
+
+
+
+29.6.2006:
+----------
+
+*'''	Draw3D	'''
+weird bug on zets machine, when rendering list2dimages with vertexcolors
+the next rendered image corrupts texturestuff, had to hack around it
+likely texture state is off
+
+*'''	GUI ImageComponent	'''
+blendmode, texmatrix...
+
+
+28.6.2006:
+----------
+
+*'''	Model	'''
+meshtype moved to model_findmeshtype..
+added lightmap coord compile
+
+*'''	Shader	'''
+default white texture when lightmap is not set
+
+
+
+
+27.6.2006:
+----------
+
+*'''	UtilFunction ColMesh 	'''
+added more data, per tri meshid and original index,
+also bonetransforms and external matrix transforms
+
+*'''	List3D	'''
+update all / per set function
+lmtexture matrix
+fpubbed lightmap
+
+*'''	FP SceneNode/L3d	'''
+worldmatrix + updateall
+
+*'''	Draw3D	'''
+lightmap is affected by extra lmtexture matrix
+
+*'''	Texture	'''
+putpixel for intensity fixed
+reloadddata fixed
+
+26.6.2006:
+----------
+
+*'''	VertexArray	'''
+single transforms
+
+*'''	Math	'''
+project on plane matrix
+
+*'''	Texture	'''
+convolution filter (gauss,box)
+
+*'''	FP VertexArray	'''
+projection and tranforms of texcoords
+
+25.6.2006:
+----------
+
+*'''	GeomTest	'''
+added detailed raytris check
+
+*'''	StencilShadow	'''
+fix with camera plane
+
+
+23.6.2006:
+----------
+
+*'''	FrameFX	'''
+lots of fixes, forgot to fpub pos/size
+
+*'''	RenderBackground	'''
+manual clear values for stencil and depth
+
+
+
+22.6.2006:
+----------
+
+*'''	Camera	'''
+user clipping
+
+*'''	3dsmax bakersfield '''
+added save frames
+
+
+21.6.2006:
+----------
+
+*'''	List3D	'''
+when linking l3d and parent has no IF there was a bug
+
+*'''	Collision Exporter	'''
+3dsmax script + importer in utilfunctions
+
+*'''	FP VertexArray	'''
+bbox
+
+
+20.6.2006:
+----------
+
+*'''	GLParticle	'''
+changed programs to use attrib instead of texcoord, so that it works on older hardware
+
+*'''	Texture	'''
+added DOTZ texture, creates cube from 1D
+fixed texture sample function
+
+*'''	Shader	'''
+sunreflect and sunnormalmap
+bugfix with shader loaded textures
+
+*'''	List2D	'''
+bugfix for g_VID.drawsetup.worldMatrix	
+
+*'''	Draw	'''
+bugfix with 1D textures
+
+
+
+18.6.2006:
+----------
+
+*'''	ShadowVolume '''
+works and fpubbed
+
+
+17.6.2006:
+----------
+
+*'''	Shader	'''
+sunmap finally works
+
+
+16.6.2006:
+----------
+
+*'''	GLParticle	'''
+recoded Particle Rendering using a different technique
+for instanced meshes, which is much faster than the big mesh chunk
+
+
+15.6.2006:
+----------
+
+*'''	ParticleCloud	'''
+need to clear drawables after all rendering was done, else only first view renders them
+
+
+14.6.2006:
+----------
+
+*'''	Particle	'''
+origin offset added for non centered billboards
+instancing of small meshes
+
+*'''	GLParticle	'''
+GLParticleMesh replaces the old arrays, useful for instancing as well
+
+*'''	List2D	'''
+bugfix with l3dtarget function
+
+
+
+13.6.2006:
+----------
+
+*'''	FrameFX	'''
+added stencil support
+
+*'''	Camera	'''
+added infbackplane projection/ NV_DEPTHCLAMP
+
+8-12.6.2006:
+------------
+
+*'''	ShadowModel	'''
+implementing shadowmodel for stencil shadows
+does zfail or zpass based on object position
+
+
+7.6.2006:
+---------
+
+*'''	ParticleSys / Cloud	'''
+support for a user defined volume to check particles against
+
+*'''	GLParticleCloud	'''
+identical feeding (precompute viewpos) as GLPsys
+
+
+6.6.2006:
+---------
+
+*'''	ParticleSys	'''
+added agedvelocity effect
+
+*'''	ParticleGroup	'''
+added manual drawlist
+
+*'''	FP FloatArray	'''
+functions for vector3 access, spline interpolation and direction computation
+bugfix with self op float
+
+
+5.6.2006:
+---------
+
+*'''	VID, l3ddraw	'''
+two-sided stenciling added
+
+*'''	FP Capability	'''
+instead of using the system stuff added a new class
+
+
+4.6.2006:
+---------
+
+*'''	Particle	'''
+added AgeTextures for more userfriendly and precise control of user textures
+also published the interpolators 
+
+*'''	FP Trail	'''
+the trail colors & sizes can be changed on mesh level
+
+*'''	FP	'''
+cleaned most of the 0,1... upvalue funcs
+
+2.6.2006:
+---------
+
+*'''	Bone	'''
+IK controller has a bit more options
+swapaxis kicked related to math bug
+
+*'''	3DMath	'''
+major bugfix, rotation get/set where in different order
+
+*'''	Shader	'''
+the compiler was changes so that gpu stages come first
+and then the others, that way gpu/normal stages should no
+longer interfer in compile mode
+
+
+1.6.2006:
+---------
+
+*'''	Bone	'''
+bugfixes in the IK controller
+
+*'''	Draw3D	'''
+added bonelimits drawing to debughelpers
+
+
+31.5.2006:
+----------
+
+*'''	Draw3D	'''
+added bonenames drawing to debughelpers
+
+*'''	Bone	'''
+bugfix with lookat nonaxis limit
+had to introduce special swapaxis command for certain bones
+as euler decomposition sometimes returns wrong results (not sure yet why)
+
+
+*'''	F3D Exporter Max	'''
+bugfix with normals not normalized when removescale is used
+
+27.5.2006:
+----------
+
+*'''	Texture/Cubemap/Skybox	'''
+had to change orientation again :/ so that it works with dds cubemaps for skyboxes and so on
+registered tex now clear properly
+
+*'''	Map/KeyNode	'''
+unsetting killed the first layer,
+also map entrycount was never updated
+
+*'''	PubMatrix4x4	'''
+setrotationrad and seteuler (were identical) gone
+the standard rotrad,rotdeg,rotaxis added
+
+26.5.2006:
+----------
+
+*'''	Texture	'''
+mipmap for user textures, if SGIS_mipmap is available
+manual mipmaps now supported, too
+rewrote the uploading as well, now supports compressed images,too.
+dds support
+
+*'''	ParticleSys	'''
+added rectanglelocal emitter which is not world aligned
+and FPubed emitter types
+
+
+25.5.2006:
+----------
+
+*'''	List3D	'''
+deleting nodes optionally deletes children
+and also fixed some issues with unlink from IF
+
+*'''	FileSystem	'''
+crc exit doesnt crash anymore
+
+*'''	List3D LayerOpCodes	'''
+opcodes fully implemented and working
+
+
+24.5.2006:
+----------
+
+*'''	List3D	'''
+added the list3dopcodes for multipass layer rendering
+
+
+22.5.2006:
+----------
+
+*'''	List3D	'''
+raised drawnodes, and added another layer
+
+*'''	FrameFX	'''
+moved last layer after particles and background
+
+*'''	VID	'''
+stencil fixes
+
+
+19.5.2006:
+----------
+
+*'''	Window / VID	'''
+fullscreen toggle fix
+
+
+*'''	VID	'''
+added stencil support
+
+*'''	List2D	'''
+new flag setter for stenciling
+
+*'''	List3D	'''
+layer can have stencil info
+
+18.5.2006:
+----------
+
+*'''	FPub ParticleGroup	'''
+added color/size/probability
+
+*'''	BoneControl	'''
+added global alloc list
+and changed FPub a bit
+
+*'''	IModel2Model	'''
+bugfix with vertex64, forgot uv channel0
+
+*'''	LuxWindow	'''
+kicked out resstring from actual struct
+
+
+
+17.5.2006:
+----------
+
+*'''	List3DView	'''
+made a simple sortdisable flag for view
+depthonly view added , ignore forceflags added
+
+*'''	FPub List3DView	'''
+bugfix for deactivate
+
+*'''	Texture/Projector	'''
+shadowmapping works, but buggy ati (no clamp)
+
+
+16.5.2006:
+----------
+
+*'''	Bone/List3DModel	'''
+bones can be computed in worldspace. Useful for ragdoll
+
+*'''	List3DDraw	'''
+changed drawing order a bit so that background comes before particles
+
+
+14.5.2006:
+----------
+
+*'''	l3dtext	'''
+added perspective rendering
+
+*'''	FPub FontSet	'''
+the fontset system is now available
+
+*'''	FPub Texture	'''
+can be saved to file, and filtering can be enabled/disabled
+
+13.5.2006:
+----------
+
+*'''	GLPrint	'''
+recoded using new fontset. also fixed \n and so on
+
+*'''	FileSystem	'''
+bugfix with upper case file extensions
+
+
+12.5.2006:
+----------
+
+*'''	Animation/Bone	'''
+bugfix with negative speed and loop behavior
+
+11.5.2006:
+----------
+
+*'''	FP Texture	'''
+added sizeinfo
+
+7.5.2006:
+---------
+
+*'''	Cg	/ gl_particles	/ Shader	'''
+various bugfixes with Cg programs
+
+5.5.2006:
+---------
+
+*'''	Psys Force link	'''
+reference system issue, invalid != !valid
+
+3.5.2006:
+---------
+
+*'''	Animation	'''
+bugfix with assigns, no listnodeinit 
+
+
+2.5.2006:
+---------
+
+*'''	FP L3dModel	'''
+added bone funcs
+
+
+30.4.2006:
+----------
+
+*'''	Main	'''
+the LuxTask stuff works slightly different now and was also added for ResourceManager
+
+
+29.4.2006:
+----------
+
+*'''	Texture	'''
+added depthtexture with shadow mapping
+
+
+--------------------------------------------------
+0.93 START
+--------------------------------------------------
+0.92 END
+--------------------------------------------------
+
+27.4.2006:
+----------
+
+*'''	SkyBox	'''
+fixed issues with skybox
+
+
+23.4.2006:
+----------
+
+tons of bugfixes ;)
+
+*'''	L3DDraw,L3DView	'''
+bugfixes regarding render to texture
+
+*'''	VisTest	'''
+pointer error when all nodes were visible fixed
+
+*'''	Particle	'''
+forces work
+
+
+22.4.2006:
+----------
+
+*'''	FP Window	'''
+width/height gettable
+
+*'''	ResManager	'''
+raised core textures
+
+*'''	LuxModule GUI	'''
+made sure all default textures are loaded into coremem
+
+*'''	Camera	'''
+added local transforms and rotation locks as l3d has it
+
+
+21.4.2006:
+----------
+
+*'''	L3DPrimitive	'''
+added centered quad
+
+*'''	3DMath	'''
+vector3invtransform was wrong
+
+*'''	Shader	'''
+added flag if parameters need wolrdinverse matrix
+
+*'''	Actor/Scenenode	'''
+visbbox accessable from fpub
+
+*'''	Actor	'''
+needs position on creation
+
+
+20.4.2006:
+----------
+
+*'''	Model/VID...	'''
+Vertex64 changed, threw out SIMD and made shorts for tangents and normal
+more efficient use of all bytes
+
+setTangents is attrib7
+
+*'''	GLParticle	'''
+storing attribs in tex0
+
+*'''	List2D	'''
+sort only when needed, and dirtyflag for matrices
+
+
+19.4.2006:
+----------
+
+*'''	Particle	'''
+added global aligned particles
+
+
+*'''	VertexArray	'''
+bugfix in accessors (always mid 0 used)
+
+*'''	PGraph	'''
+added shadow
+
+
+18.4.2006:
+----------
+
+*'''	Particle	'''
+added general size and color multipliers
+
+*'''	Texture	'''
+sampling function that does bilinear filtering
+
+*'''	PGraph	'''
+published them and added a few new
+
+
+17.4.2006:
+----------
+
+*'''	Particle	'''
+some minor fixes in the volume stuff, added camera influence
+
+
+16.4.2006:
+----------
+
+*'''	FrameFX	'''
+rewrote to make it more OO and added classes in fpub
+also allowed usermesh and precise snapshots
+
+*'''	List3DView	'''
+user can decide when to draw background
+
+*'''	GLParticle	'''
+storing billboard info in local paramters
+or connected Cg arrays, and only upload if particletype has changed
+
+13.4.2006:
+----------
+
+*'''	List3DLayer	'''
+layers can be disabled
+
+*'''	Render	'''
+forcefinish optional to wait until gl is finished
+
+*'''	IModel	'''
+importing bones/meshes is equally
+
+
+12.4.2006:
+----------
+
+*'''	List3D Primitive	'''
+now can have usermesh just like l2dimage
+
+*'''	F3DExporter Max	'''
+added removescale and globalscale
+
+*'''	VisTest	/ SceneNode	'''
+forgot to set visoctree recompile when sn matrices changed
+
+11.4.2006:
+----------
+
+*'''	F3DExporter Max	'''
+changed the way hierarchy is dealt with when parent is not exported
+
+6.4.2006:
+---------
+
+*'''	GLParticle	'''
+fixed a glitch
+
+29.3.2006:
+----------
+
+*'''	Pub	'''
+bugfixes minor stuff, casting the staticarrays properly now
+
+*'''	Main lua	'''
+splash screen is back
+
+
+28.3.2006:
+----------
+
+*'''	ResChunk	'''
+reset texture states (else resids which are illegal are still marked as bound)
+
+*'''	PubResChunk	'''
+added command to use corememory
+
+*'''	LuxMod Gui	'''
+use corememory for the white texture
+
+*'''	LuxMod Viewer	'''
+is back and kickin
+
+
+27.3.2006:
+----------
+
+*'''	TBTerrain	'''
+reactivated the code and published the constructor
+
+
+26.3.2006:
+----------
+
+*'''	PubModel	'''
+added skin support
+
+
+25.3.2006:
+----------
+
+*'''	Camera	'''
+added clipping planes
+
+*'''	DrawHelpers	'''
+are now back
+
+*'''	VID	'''
+speed ups, way too many unneeded matrixcopies used
+
+24.3.2006:
+----------
+
+*'''	FileSystem	'''
+Rewrote it quite a bit, all internal fileloaders must be registered at the filesystem.
+SetProjectFilename converts a name to filename (proper subpaths) and returns the fileloader type (e.g f3d..)
+FSFile open can get its contents from external sources
+
+*'''	FPub Pointer,FileSys,FileType	'''
+To allow luaside processing of projectfilename creation and filecontent returning,
+filetype (f3d,..) and pointer classes were added. The Filesystem class also contains
+the original functions we use internally to process filename and get filecontent.
+The wrappers that the user can supply must match those functions. The wrapping (C calls lua)
+is not done yet.
+
+
+21.3.2006:
+----------
+
+*'''	List2D	'''
+only sort nodes with sortkey != 0
+
+*'''	FileSystem	'''
+removed most code, as zip stuff will be handled by lua
+
+
+19.3.2006:
+----------
+
+*'''	List3DBatch	'''
+bugfix with indicesgroup handling
+
+*'''	GL_Particle	'''
+filling drawprts is its own function now, to allow easier combined drawing.
+combined drawing should work again.
+
+*'''	Resource	'''
+added a flag to forceload resources of one type
+
+18.3.2006:
+----------
+
+*'''	FPub ParticleForce	'''
+finished the code for the new prototypes
+
+
+17.3.2006:
+----------
+
+*'''	Model/Bone	'''
+relative matrices are stored transposed
+minor speedups in skinning
+
+13.3.2006:
+----------
+
+*'''	ParticleForce	'''
+recoded the way forces work
+more fx allowed, and control from fpub
+
+
+11.3.2006:
+----------
+
+*'''	List3D	'''
+minor optimizations, only doing hierarchy updates when needed
+also only checking linked object when needed
+drawnFrame instead of drawn because that way we need no resets
+this fixed bug with l3dtargets of l2dnodes
+
+*'''	Skin	'''
+minor optimizations;
+
+
+8.3.2006:
+---------
+
+*'''	Vistest/Lights	'''
+added 2 sets of lightpointers per visobject,
+one for fully lit, and one for just fxlit nodes
+l3dnodes will decide based on their first drawnodes' renderflag
+which lightset to take
+
+a try to speed up resetting by ondemand setting actually made things slower
+
+
+7.3.2006:
+---------
+
+*'''	FPub MeshArrays	'''
+index and vertexarrays now support batched geometry
+
+
+5.3.2006:
+---------
+
+*'''	Batching	'''
+it's done, but actually slower if too much is batched, it becomes more
+efficient once vbos are used
+
+*'''	Lighting	'''
+render_lit is only used internally,
+render_sunlit and render_fxlit work autonomously
+if just fxlit is used lightmodelambient is set to white, else black
+that way baking lighting is possible while still using fxlights
+
+4.3.2006:
+---------
+
+*'''	List3DBatch	'''
+changed name, as it really is just for l3dnodes not generally useable.
+also changed the compile command in a fashion that it is fully autonomous and doesnt need
+scenetree or l3d updates.
+
+1.3.2006:
+---------
+
+*'''	List3DView	'''
+fixed bug with .new function
+also fixed bug with backgroundmatsurface drawing
+
+*'''	Draw2D	'''
+forgot to change to CW winding
+
+*'''	VID	'''
+changed the way vertexpointers are set (wrapped to minimize calls
+for optimal VBO useage)
+
+*'''	GpuProg	'''
+rotations are stored in attrib6 not texcoord anymore
+
+*'''	FPub l3dbatchbuffer	'''
+to allow batching, needs l3dset and scenenode as root
+
+*'''	Draw3DBatch	'''
+the function that build the drawnodes list from a given scenenode and l3dsetid
+are now done, and the batching data creation backend is completed,
+what is left is drawing them, as well as fpub array access
+
+*'''	List2D	'''
+added scissortest
+
+28.2.2006:
+----------
+
+*'''	Draw3DBatch	'''
+the batching backend, gets a list of drawnodes
+and stores their transformed vertices into a batchbuffer,
+each is split into batchcontainers which hold vertex and indexdata
+of drawnodes with same materials
+
+27.2.2006:
+----------
+
+*'''	FPub Model,Mesh	'''
+removed some deprecated functions
+(didnt like polymorphism of getbone, getmesh, also threw out meshid vertex/triangle functions)
+
+*'''	FPub Vector3	'''
+rewrote with upvalues
+
+*'''	Imodel2model, Model	'''
+split off some functions
+
+*'''	FPub Model	'''
+functions done for usermodels
+
+18.2.2006:
+----------
+
+*'''	FPub VertexArray/StaticArray	'''
+added functions to return vertexattributes as floatarrays
+as well as a function to perform pervertex lighting based on given attribute arrays
+
+
+16.2.2006:
+----------
+
+*'''	main	'''
+changed the timerthink a bit, so that it can be run from within pubclass system.
+
+
+3.2.2006:
+---------
+
+*'''	bone	'''
+rewrote some stuff for speed optimisations.
+specifically made sure that boneupdates are performed in the order of hierarchy traversal
+
+*'''	anim	'''
+made sure assigns are in the same reschunk
+
+
+2.2.2006:
+---------
+
+*'''	list2d, glprint	'''
+polygon winding needed to be reverted as because of glOrtho being flipped, the winding is different.
+to make all windings same I had to invert z and manually set winding to CW, although all data is CCW.
+
+
+1.2.2006:
+---------
+
+*'''	fpub indexarray	'''
+finished the functions
+
+*'''	list2d	'''
+usermesh can override the default quad
+
+*'''	fpub matsurface	'''
+as texture did not inherit from material, the parenting is finally gone
+also changed most .material functions to .matsurface
+
+
+30.1.2006:
+----------
+
+*'''	trail	'''
+added option to close the trail
+
+
+29.1.2006:
+----------
+
+*'''	list3d	'''
+ranged visibility testing for l3dvis
+
+
+28.1.2006:
+----------
+
+*'''	draw3d/VID/shader	'''
+Cg skinning should work now
+
+*'''	GpuPrograms	'''
+optimized skinning programs by passing lightpos in objectspace
+
+*'''	Shader	'''
+rewrote parts of the simple normalmapping
+
+
+24.1.2006:
+----------
+
+*'''	sound	'''
+nosound option, new ALut and OpenAL versions used
+
+*'''	input.lua	'''
+reset keys on window update
+
+
+22.1.2006:
+----------
+
+*'''	radixsort	'''
+fixed float and signed int handling
+
+*'''	PubVertexArray	'''
+published vertex arrays
+
+
+20.1.2006:
+----------
+
+*'''	FNPub scenenode,l3dnode,actornode	'''
+added matrix functions for all
+
+*'''	PubMatrix	'''
+now has lookat function 
+
+*'''	PubTexture	'''
+func to disable filtering
+
+
+17.1.2006:
+----------
+
+*'''	FNPub scenenode,l3dnode,actornode, l2dnode	'''
+rotation now properly set in radians/degrees
+
+*'''	Model	'''
+some preparation for user models
+
+15.1.2006:
+----------
+
+*'''	LuxF3D	'''
+bugfixes with md3
+
+
+8.1.2006:
+---------
+
+*'''	F3D	'''
+bugfix in loader regarding instances
+
+*'''	F3DExporter 3dsmax	'''
+bugfix in exporting instances, and dont 
+create submaterial if all submaterials have no textures
+
+
+5.1.2006:
+---------
+
+*'''	FPub: scenenode/actor/list3d	'''
+added rotation axis set/gets
+
+*'''	PubVector3	'''
+same hack to stop mem leak as in matrix4x4
+
+*'''	Shader	'''
+allow manual passes
+and a little cleaning up in the code
+
+4.1.2006:
+---------
+
+*'''	PubMatrix4x4	'''
+a hack to stop it leaking memory, very ugly..
+
+3.1.2006:
+---------
+
+last 2 days
+
+*'''	Material	'''
+now support multiple shaders, shader:0 is used as default
+also had to split up shaderparam overrides 
+
+*'''	VID	/ Draw3D	'''
+base shaders introduced
+
+*'''	List3DView	'''
+can have their own baseshaders and
+one can turn of lights,projectors,framefx,particles
+
+*'''	Render	'''
+backgroundsetting was accidently done twice
+
+30.12.2005:
+-----------
+
+*'''	Shader	'''
+a little optimisation work to get rid of all the "deactivates"
+we often turned texturing/texcoords of, just to activate them in the next drawcall again
+use vidClearTexStages(needed stages) to turn leftovers of
+
+
+29.12.2005:
+-----------
+
+*'''	Texture	'''
+resize windowtextures when resolution is changed
+
+*'''	List3D	'''
+fpubbed the camvolume code
+
+*'''	ParticleSys	'''
+separated drawing from updating
+so that update is done once per set and draw multiple times per view
+
+*'''	VID	'''
+added DECALCLR although I am not sure it can be used in a generic fashion
+because there is no multipass equivalent
+
+
+28.12.2005:
+-----------
+
+*'''	Texture	'''
+user-created textures working
+write to pixel and resubmit texture
+
+*'''	Material	'''
+minor changes to allow non framefx windowsized textures
+
+*'''	ResData	'''
+added a global user texture registry, where user created texture names are stored
+as well as user registered normal textures.
+
+
+
+27.12.2005:
+-----------
+
+the past two days:
+
+*'''	Viewport	'''
+list3d can change viewport, scissoring is auto enabled/disabled
+
+*'''	List3DView	'''
+fully published, added functions to compat for old functionality
+
+*'''	List3D	'''
+visflags can now be set
+
+*'''	RenderFlag	'''
+fog is only set if fogging was enabled by l3dview
+
+*'''	Texture	'''
+cleaned up malloc/frees to genfree..
+copyframebuffer to tex function
+also marking textures that should match viewport
+as well as keepdata flag in case user wants to access it
+
+*'''	LuaCore	'''
+minor glitch, stack wasnt cleaned up from last used
+hence I add a LUXI_CLASS_ERROR at the end of the stack, to make sure
+noone can read data from previous functions
+
+25.12.2005:
+-----------
+
+*'''	List3D	'''
+default layer and sets
+
+
+21.12.2005:
+-----------
+
+*'''	Main/ResData	'''
+resources now first searched in parent resource path
+default path can be changed
+
+
+15.12.2005:
+-----------
+
+*'''	PubMatrix4x4	'''
+some bugfixes, more access
+
+*'''	List2D	'''
+text size introduced and multiplied with scale[x] for backwards comp.
+
+*'''	GLprint	'''
+scale now auto divided by 16
+
+12.12.2005:
+-----------
+
+*'''	VID	'''
+useVbo on when technique is greater ARB_VF
+
+*'''	Main	'''
+output more to log
+
+
+--------------------------------------------------
+0.92 START
+--------------------------------------------------
+0.91 END
+--------------------------------------------------
+
+7.12.2005:
+----------
+
+*'''	BoneSys	'''
+removed boneSkip frame, created problems with manual setframes
+
+*'''	Particle	'''
+added colorc life for faster copying, various timestep issues
+
+*'''	List3DDraw	'''
+bugfix in particlesystems, sys removal while running could stop list
+
+
+6.12.2005:
+----------
+
+*'''	List3D	'''
+deinit did not clear particlesys/clouds properly
+
+*'''	GLParticle	'''
+sorted blends the wrong way (radixsort doesnt seem to like signed data at all)
+
+*'''	Particle	'''
+wrong timesteps at times
+
+
+
+5.12.2005:
+----------
+
+*'''	Shader	'''
+fix in the compiler regarding crossbar useage, cant crossbar when prev is a color
+also allowed smarter use of ati_combine3
+
+*'''	Material	'''
+wrong matrix for framefx textures
+
+
+--------------------------------------------------
+0.91 START
+--------------------------------------------------
+0.90 END
+--------------------------------------------------
+
+30.11.2005:
+-----------
+
+*'''	ALL	'''
+minor fixes
+
+
+29.11.2005:
+-----------
+
+*'''	VID	'''
+usevbo as option
+
+28.11.2005:
+-----------
+
+*'''	F3D	'''
+bugfix with loading version 230 and vertex32
+
+*'''	Model	'''
+bugfix in skinning code
+
+*'''	VID	'''
+output info to log file on start
+
+26.11.2005:
+-----------
+
+*'''	ParticleCloud Draw	'''
+used prt instead of drawprt
+
+*'''	VID	'''
+fixed VBO useage,
+forgot to unbind buffers when setting texcoords
+split vertex32 in lightmapped and lit, lit uses short normals
+indexMax and indexMin per mesh to call drawelementsrange more precisely 
+
+
+25.11.2005:
+-----------
+
+*'''	ParticleCloud	'''
+bugfix in init (dont overwrite resinfo)
+
+
+22.11.2005:
+-----------
+
+*'''	FrameFx	'''
+some minor changes to make it more compatible to the other
+render surfaces
+
+
+21.11.2005:
+-----------
+
+*'''	Render	'''
+clearbits only work when masks are active
+
+*'''	CamLights..	'''
+static default light/camera
+lights/proj freed with l3d
+skybox/cameras freed with own deletall
+
+
+20.11.2005:
+-----------
+
+*'''	3D Math	'''
+bugfix in invtransform
+
+*'''	Shader	'''
+camerapos.. also in object coords
+
+
+18.11.2005:
+-----------
+
+*'''	Particle	'''
+bugfix regarding particlesys restarts\nendtime created durations for systems who
+had none
+
+*'''	GpuProg	'''
+fixed lighting problems
+
+*'''	Misc	'''
+removed some dead meat:
+xml/xmlobject/linkedlist old/s3d/trn/tls
+
+17.11.2005:
+-----------
+
+*'''	ResData	'''
+bugfixes, forgot to decrement used on push, and did not reset l_fillchunk properly
+
+*'''	Shader	'''
+removed VID_A_REPLACE as default alphamode,
+allows vertexalpha * texalpha blends
+bugfixes in compiler
+
+
+16.11.2005:
+-----------
+
+*'''	Shader	'''
+bugfixes in compiler
+
+*'''	List3D	'''
+linked wrong bone matrices to drawnode
+
+
+15.11.2005:
+-----------
+
+*'''	Bone	'''
+bugfix regaring duration/loop handling
+
+*'''	Particle	'''
+wrongly sorted
+
+
+14.11.2005:
+-----------
+
+*'''	List3D	'''
+added novistest state toggle
+various bugfixes regarding References
+
+*'''	VisTest	'''
+bufferzalloc a visible node list
+
+
+13.11.2005:
+-----------
+
+*'''	VisTest	'''
+now knows its linked l3dnodes
+auto creates a pointer array of all visible l3dodes
+
+*'''	MemoryManager	'''
+mempool allows manual stack like useage
+
+*'''	List3D	'''
+direct access to visobject, no more stateinterface
+uses reference of actor/s3d to get its matrix
+
+*'''	Actor/SceneNode	'''
+auto create reference on start
+
+*'''	InterfaceObjects	'''
+removed unused
+
+
+12.11.2005:
+-----------
+
+*'''	Particle	'''
+rewrote particle processing
+from single run, to a multi run iteration to perform
+each update.
+
+also GLParticle was born as unified version
+
+
+10.11.2005:
+-----------
+
+*'''	Particle	'''
+timescale value
+
+*'''	Texture '''
+bugfix in getGL, yeah forgot another break in a switch case, its my #1 bug
+
+*'''	FPub	'''
+window class
+
+*'''	List3D	'''
+zsort layer treating
+
+
+9.11.2005:
+----------
+
+*'''	Draw3D	'''
+forgot AlphaFunc sets
+
+*'''	Particle	'''
+volume particle system working and kicking ass
+
+
+7.11.2005:
+----------
+
+*'''	Particle	'''
+turbulence added
+
+*'''	VisTest	'''
+octree depth can be set by user
+
+
+5.11.2005:
+----------
+
+*'''	Trail	'''
+points can be linked to actors/scenenodes
+
+
+4.11.2005:
+----------
+
+*'''	GPUProgs	'''
+fixed lighting in skin_weight progs (todo skin rigid)
+
+*'''	3DMath	'''
+macros for vectortransfrom
+
+*'''	Draw3D	'''
+bugfix in projector passes
+
+*'''	Particles	'''
+fix for statics using new reference stuff
+
+*'''	Bones	'''
+boneseq->time is a bit cirtical, added a boneseq flag to force
+a first play of the anim
+
+
+3.11.2005:
+----------
+
+*'''	VID	'''
+renderflag from string
+
+*'''	List3D	'''
+autorenderflag from mesh materialname
+bugfix of color pointer
+
+
+2.11.2005:
+----------
+
+*'''	VID	'''
+renderflag bugfix on unlit
+
+*'''	List3D	'''
+renderflag handling changed to push state + rf
+
+*'''	Draw3D	'''
+various fixes, fog behavior, projector...
+
+*'''	Control	'''
+camera freelook from last
+
+it was the draw-all-hunt-all-bugs day
+
+
+1.11.2005:
+----------
+
+*'''	3DMath	'''
+bounding capsule creation changed (now bigger than bbox)
+matrixmultiplyfull fixed, and frustum...
+
+*'''	VisTest	'''
+fixed bounding sphere transform
+
+*'''	Draw3D	'''
+fixed lights, set them right after cam matrix
+fixed projector setup, must come before material and stop material from being used
+fixed fog on blends
+reverted drawnodes being listnodes again, seems faster... 
+...nope wasnt, changed back to qsort arrays
+
+*'''	VID	'''
+somewhat split the renderflags in "stateflags" bits 0-15 and "rest" bits
+
+*'''	Shader	'''
+fixed blendinvertalpha for crossbar compile
+
+
+
+27.10.2005:
+-----------
+
+*'''	VID	'''
+Mesh compile of vbos/display lists for the internal ones
+VIDLine was born, to have full control over wireframe rendering
+
+26.10.2005:
+-----------
+
+*'''	VID	'''
+state handling completely with renderflags
+
+*'''	FPub	'''
+a few more interface classes
+
+
+25.10.2005:
+-----------
+
+*'''	List3D	'''
+nodes get colors, renderscale
+
+*'''	Model	'''
+display list compile bugfix for vertex32
+
+
+24.10.2005:
+-----------
+
+*'''	List3D/Projector	'''
+fixed projectors, several bugs around draw3d passes, list3d vistest...
+
+*'''	VID	'''
+added generic box mesh
+
+*'''	List3DPrimitive	'''
+usese box mesh, todo sphere mesh
+
+23.10.2005:
+-----------
+
+*'''	List3D/Model/Draw3D	'''
+further work on integrating views
+most work on DrawNode handling and operations
+the tested projects work well so far, minus the fact there are no primitives
+
+22.10.2005:
+-----------
+
+*'''	List3D/Model/Draw3D	'''
+major rewrite started, mostly trying to get the ways to the real needed data
+quicker. list3d nodes are moved to lists at their target set
+arbitrary amount of views per set are allowed (limited by 32 cameraids in total)
+quick operations are no more done on list iteration but array,
+especially layer sorting
+drawnodes are born to be the main rendering way, any drawable l3dnode must
+be able to produce a mesh to be rendered
+
+20.10.2005:
+-----------
+
+*'''	List2D '''
+l3dnode draw bugfix
+
+
+19.10.2005:
+-----------
+
+*'''	Camera	'''
+got aspect ratio
+
+*'''	List3D	'''
+two sortkeys 
+
+18.10.2005:
+-----------
+
+*'''	List3D	'''
+fixes for multiple l3dset assignments
+
+17.10.2005:
+-----------
+
+*'''	List3D	'''
+basic wrangling of multiple l3dset assignments
+
+*'''	Animation	'''
+binary search for finding key
+
+16.10.2005:
+-----------
+
+*'''	Draw3D	'''
+fixed hwskinning, but is slower for some weird reason
+
+
+13.10.2005:
+-----------
+
+*'''	Cleanup	'''
+IModel became its own lib affected: engine, luxf3d, maxexport
+
+*'''	Trail	'''
+fix with mesh.indices on precompiled
+
+*'''	GpuProg	'''
+replace strings for dynamic code changes
+
+
+12.10.2005:
+-----------
+
+*'''	FPub	'''
+texture cleargl
+
+*'''	Trail	'''
+added planarmap, dirty flags.. can be used in l2dlist
+
+10.10.2005:
+-----------
+
+*'''	PGraph	'''
+added ode support
+did I mention ODE, yeah we got ODE !! just took Zet almost a year to bring it back ;)
+
+
+9.10.2005:
+----------
+
+*'''	List3D	'''
+layer iterating moved to draw commands, to minimize function call overhead
+
+
+7.10.2005:
+----------
+
+*'''	Resources	'''
+bugfix with fail-loaded resources (clear pointer, leak mem..)
+
+*'''	Viewer	'''
+check if is .ma file for anim loading
+
+
+6.10.2005:
+----------
+
+*'''	VisTest	'''
+dynamic/statics now use matrixIF
+
+*'''	CleanUp	'''
+removed collision stuff as that is being rewritten entirely in fpub
+
+*'''	PSys/PCloud	'''
+added matobject
+
+*'''	Material	'''
+added MaterialParam to control shaderparams
+
+
+5.10.2005:
+----------
+
+*'''	Shader	'''
+sunmap removed but added skyreflectmap
+which is a slightly modified relfectmap
+various bugfixes on cubemap generation
+
+*'''	Main	'''
+added "signal"s to catch some illegal terminations of the app
+
+
+4.10.2005:
+----------
+
+*'''	Texture	'''
+some cleanups, so that less uptypes are needed
+
+*'''	Material/Shader	'''
+allow cubemaps/projectormaps
+
+
+1.10.2005:
+----------
+
+*'''	ParticleSys	'''
+bugfix regarding "active" particles, parentsys gets childrens active status
+so that on rendering we will make sure its not removed from active list if
+children or their children have active particles
+
+
+19.9.2005:
+----------
+
+*'''	Render FPub	'''
+added particle pausing
+
+*'''	Texture	'''
+fixed warning message for 3d compress tex
+
+*'''	VID	'''
+added to string functions for VIDBlends
+
+*'''	Shader	'''
+added a nicer "compiler" log result for shader compiling
+
+14.9.2005:
+----------
+
+*'''	IModel2Model	'''
+we now prescale vertices, to remove normalization problems later
+also bones will now hold a "reference scale" so that matrices
+are "relative" scales
+
+*'''	3dsmax export f3d	'''
+fixed some matrices handling so we can scales...
+also changed to 240 version
+
+
+13.9.2005:
+----------
+
+*'''	Trail	'''
+added local trail
+
+
+12.9.2005:
+----------
+
+*'''	FileIO	'''
+fix in jpg loader, better component handling
+thru out FS_scanf, way too slow
+
+
+11.9.2005:
+----------
+
+*'''	List3D	'''
+didnt set sunlights properly
+
+
+10.9.2005:
+----------
+
+*'''	Particle	'''
+sizeage3 added, and update func sped up
+
+
+09.9.2005:
+----------
+
+*'''	Particle	'''
+autorot while loop bugfix
+changed the way variances work
+
+*'''	VisTest	'''
+raised node limits
+
+
+07.9.2005:
+----------
+
+*'''	Particle	'''
+rewrote trail handling again
+now is working fine
+
+*'''	List3D	'''
+mesh drawing bugfix with animated nodes
+bugfix with light state changes
+
+06.9.2005:
+----------
+
+*'''	Particle	'''
+some bugfixing around trails
+trails are not emittertypes anymore
+they are encoded into the particlesystem itself
+
+05.9.2005:
+----------
+
+*'''	VID	'''
+bugfix in reset texture
+
+*'''	List2D	'''
+materialupdate for images
+
+*'''	Viewer	'''
+now allows mtl drawing
+
+*'''	SceneTree	'''
+default root node
+
+*'''	ActorList	'''
+fixed reference handling
+
+*'''	GL Particle	'''
+several bugfixes regarding material handling
+
+*'''	ParticleCloud	'''
+bugfixes with removing particles
+
+03.9.2005:
+----------
+
+*'''	Draw3D	'''
+manual vertexcopy for batching
+
+*'''	List3D	'''
+changed to new
+
+
+02.9.2005:
+----------
+
+*'''	Draw3D	'''
+rewrote the drawfunc, split it up
+and used macros
+
+
+01.9.2005:
+----------
+
+*'''	List3DNew/Old	'''
+modified a few headers and forced pubclasses to use
+l3d_sets whenever possible, since the new list will require it
+
+finished setting typefuncs for the l3dnodes
+
+
+31.8.2005:
+----------
+
+*'''	List3DNew	'''
+started the rewrite
+
+
+30.8.2005:
+----------
+
+*'''	Draw3D	'''
+always lock arrays if we can,
+moved "nolock" from mesh to shader and not
+like before. 
+
+*'''	Shader	'''
+now finds out if its lockable (ie texcoords can be set in first pass for all passes)
+
+29.8.2005:
+----------
+
+*'''	Fpub	'''
+Materialobject and renderflag class abstracted away a bit
+
+*'''	List3DBatch	'''
+support for batching added
+
+
+28.8.2005:
+----------
+
+*'''	List3D/Model	'''
+added VertexContainer, used for morphing and compiled l3dmodels
+added fpub/l3d stuff for compiling models
+
+
+27.8.2005:
+----------
+
+*'''	ParticleSys	'''
+allowed subsystems to have subsystems themselves
+combinedraw however only works if there is just a single
+depth level
+
+
+26.8.2005:
+----------
+
+*'''	Trail	'''
+new spawning code to make it fps independent
+
+*'''	GLPrint / Console print	'''
+print no longer contains translation, therefore
+some code had to be changed
+but now user can define spacing between chars
+
+
+25.8.2005:
+----------
+
+*'''	Trail	'''
+does have support for velocity
+
+*'''	Particles	'''
+some small bugfixes, l_PrtBuffer.pTex pointer on drawing
+
+
+24.8.2005:
+----------
+
+*'''	List3D	'''
+l3dset now has a lookup array for projectors
+started some basic thinking about how to add batching
+
+
+*'''	SceneTree	'''
+matrix update changes matrix immediately if node has no children
+
+
+23.8.2005:
+----------
+
+*'''	ParticleCloud	'''
+fully published
+
+
+22.8.2005:
+----------
+
+the BUG, that works for me but crahses most, seems to be in the 
+VBO management, I turned it off again, until I find a better
+"crash" box to debug it properly
+
+*'''	Material	'''
+only load textures that the shader uses, useful for different techniques
+
+*'''	Viewer	'''
+now plays animation 
+
+
+21.8.2005:
+----------
+
+*'''	ALL	'''
+spread tons of luxasserts everywhere
+also added luacall print
+
+18-20.8.2005:
+----------
+
+spent the last 3 days on fixing the resmanager
+
+*'''	ALL	'''
+resources now purely intercommunicate via RIDs
+a lot of ResData_gets now everywhere, but it was 
+somewhat needed.
+there is still of course no real error checking if 
+you create null pointers, because you clear the wrong
+resourcechunks.
+Also within the modules, like modelmorph, anim bone assigns...
+we still use pointers
+
+*'''	Viewer	'''
+well it has gone in peace
+now fully operates in lua
+
+*'''	LightControl	'''
+has gone in peace as well
+
+
+17.8.2005:
+----------
+
+*'''	ResManager	'''
+the new system is working,
+however the 'reloading' and proper 'clear'
+ie interchunk dependencies are not in yet
+
+*'''	VID	'''
+texturebinds now only take resTexRID, since
+really all resources go thru it
+
+
+16.8.2005:
+----------
+
+*'''	ResManager	'''
+the complete rewrite has started,
+we use chunks now, and resourcetypes were also abstracted away a bit
+
+*'''	Rest..	'''
+all who before "hacky" created their own resources,
+like framefx textures, vid, font print... now use
+the resource manager and a special "default" chunk
+
+*'''	gl_print	'''
+supports different font textures (wow that took us a long time eh ;) )
+
+
+15.8.2005:
+----------
+
+*'''	Environment	'''
+added vector3 and vector4 types, stumbled upon a bug
+in the miscstring parser, current fix is a manual
+strcmp in the env loader
+
+
+*'''	List3D	'''
+bugfixes with default light/sun handling
+
+*'''	VisTest	'''
+changed the way projectors/lights and cameras are handled, was necessary
+because of ambigous results considering the l3dset handling.
+now vistest is also broken in "sets" and handles projectors and 
+lights per visset.
+
+*'''	OcTree	'''
+changed the drawing so that I can define the depths I want to see
+
+
+14.8.2005:
+----------
+
+*'''	Luxinia F3D Tool	'''
+renamed the exe to luxf3d.exe
+added basic support of md3 loading and conversion
+
+*'''	Trail '''
+changed the allocation handling
+
+*'''	List2D	'''
+the drawstats now show memory useage
+
+
+13.8.2005:
+----------
+
+*'''	FileSystem	'''
+reactivated the CRC checker, it now checks if the given files exist
+and have correct CRC, else it closes luxinia right at start
+use the CHECK_CRC32 define in filesystem.h to activate it
+
+*'''	CRC Maker	'''
+a little command like tool that reads a list of filenames
+and outputs a header that contains filenames and crcs in a special
+struct
+
+
+12.8.2005:
+----------
+
+*'''	Model	'''
+changed morphing so that even if no morph is currently active we will use
+the last morph's results on rendering
+added a reset function to bring the vertex data to original state
+was needed for "particle" references
+
+*'''	Bone	'''
+added reset function for boneupdate's matrices to bring back in reference state
+
+*'''	FPub	'''
+more pgroup publishing, automatic particle generation from mesh and bones
+meshes will use morphdata when available
+new class stringstack, easier to handle string collections
+
+
+11.8.2005:
+----------
+
+*'''	FPub	'''
+tidying up some code, more macros
+
+
+10.8.2005:
+----------
+
+*'''	Material	'''
+moved FRAMEFX texture binding to material system, also auto updates
+frameFXcurrent when needed
+
+*'''	ParticleSys	'''
+modified the loader to allow material as texture type
+
+*'''	Texture	'''
+added 1D textures (auto generated from height=1 2d textures)
+removed automatic anisotropy
+support for texture compression
+
+*'''	FPub	'''
+all texture types now allowed
+system got support for window handling
+
+*'''	Window	'''
+bugfix on fullscreen toggles, forgot to re-register input callbacks
+
+
+09.8.2005:
+----------
+
+*'''	List3D	'''
+Projectors are now l3dnodes
+
+*'''	GLParticle	'''
+support for using materials on rendering
+
+*'''	FPub	'''
+morphcontrol
+l3dprojector
+blendmode 
+
+
+08.8.2005:
+----------
+
+*'''	Trail	'''
+changed the way the strip generation was done, also some bugfixes
+
+
+31.7.2005:
+----------
+
+*'''	Particle	'''
+finished the ParticleCloud code, also rendering
+
+
+30.7.2005:
+----------
+
+*'''	Shader	'''
+some more automatic parameters
+
+
+28.7.2005:
+----------
+
+*'''	List3D	'''
+added List3DVis, which allows user sort of mini portal rendering,
+the l3d node and children is only drawn when camera is either inside or outside a user defined volume
+
+
+26.7.2005:
+----------
+
+*'''	ResManager	'''
+Bugfixes around projectpath handling
+
+*'''	Controls	'''
+option to disable ESC = quit 
+
+*'''	Console	'''
+fixed overview in console.lua for the class functions
+
+
+
+25.7.2005:
+----------
+
+*'''	BoundingCapsule	'''
+added a simple bounding capsule, so far only needed for 
+light distance checking
+
+*'''	VisTest	'''
+added capsule based light distance checking, a bit more
+accurate than sphere, and faster than box
+a capsule along major axis of boundingbox is generated with radius
+of the greater half dimension of the other 2 axis
+
+*'''	Light	'''
+mostly experimented with falloff curves in excel,
+I have a "automatic" quadratic falloff option that sets parameters
+based on range of the fxlight
+put in range factors into the unused Light Direction,
+this is done to access it from programmable pipeline
+
+*'''	VID	'''
+another result of the range stuff was changing the falloff lightmap
+to exp(-(dist*3)^2)
+texgen should divide by half radius of light to somewhat resemble gl's vertex lighting
+
+also some more cleanups on texcoords vs teximages vs texunits
+so we can use up to 8 textures and 8 texture coord sets in programmable mode
+may add support for 16 textures
+
+also added new techniques for 8 Texture support and shader model 3.0
+VID_ARB_VF_TEX8
+VID_CG_SM3_TEX8
+
+*'''	Main	'''
+the project path was born, which primarily searches resources in there
+and as fallback LUX_BASEPATH (atm that is "base"), which also contains font texture and main gpuprogs
+commandline:
+-projectpath PATH
+-p PATH
+
+*'''	Lua	'''
+config.lua was altered to get "projectpath" also as lookup for main.lua
+the old projects directory however is still active if you use use -lua
+
+
+24.7.2005:
+----------
+
+*'''	PerfGraph	'''
+added a simple graph useful for sampling
+times
+
+
+23.7.2005:
+----------
+
+*'''	VisTest	'''
+more bugfixing and testing
+cameras/projectors are working fully now
+VISTEST_FULL is not trivial to implement, postponed
+
+*'''	Light	'''
+fixed tons of bugs with light handling
+also issues with the way light testing was done
+
+
+22.7.2005:
+----------
+
+*'''	VisTest	'''
+last 2 days spent on integrating it using the new OcTree
+basically rewrote it completely,
+first we build 3 octrees for camera,projectors and lights
+we test those with the static octree and the dynamic octree
+
+*'''	List3D	'''
+state interface changes for fxlights handling
+
+
+19.7.2005:
+----------
+
+*'''	GpuProgs	'''
+coded Projector shader, doing 2 texcoord generations, untested
+
+*'''	Particle	'''
+tidying up drawcode using more macros, preparing for static particle cloud
+
+
+16.7.2005:
+----------
+
+*'''	VID	'''
+capTexUnits now split to capTexUnits and capTexImages, binding and texcoord settings are 
+modified accordingly to make full use of all textures a card can handle in programmable mode
+
+*'''	Shader	'''
+proper handling for multiple light shaders
+
+
+9.7.2005:
+---------
+
+*'''	Main	'''
+switched from GLUT to GLFW
+had to do work on controls mostly
+key handling is different from glut so new keycodes are used
+
+7.7.2005:
+---------
+
+*'''	List3D	'''
+more work regarding projector and light handling
+still no "light picking" for nodes when drawing so
+
+*'''	L3DDrawFunc	'''
+a simple node that allows the user to do the drawing
+camera matrix is set
+
+
+6.7.2005:
+---------
+
+*'''	List3D	'''
+further tidied up particle, fxlight and projector handling
+new is that we "bubble up" a hierarchy and update positions when needed for l3dlights/l3dprojectors
+however we mark those updated nodes as updated so we can skip the position update when actual drawing happens
+
+also moved the debug drawing of lights and proj to the l3ddraw
+
+*'''	CamLight... '''
+global lists introduced for vistesting
+
+
+22.6.2005:
+----------
+
+*'''	List3D	'''
+sets tweaked and proper camera/skybox handling
+
+*'''	Background	'''
+moved g_background to l3dbackground set's background
+
+*'''	CamLightSkybox	'''
+changed them to work a bit better with l3dsets
+since now multiple suns/cameras exist I must make sure l3dsets using them
+get set to NULL when one is freed
+
+*'''	fnpublish	'''
+threw out background from LUXI_CLASS_RENDERDEBUG and added it to l3dset
+l3dset published, modified skyboxes
+
+
+short entries for lots of work, but too tired
+
+21.6.2005:
+----------
+
+*'''	List3D	'''
+List3DSet was born
+settings consist of the same kinds of layers and are rendered sequentielly
+user can set individual environment for each set
+
+
+18.6.2005:
+----------
+
+*'''	Trail	'''
+trail system was born,
+allows N points to be rendered as strip
+
+*'''	List2D	'''
+fixed bug with l3dtarget
+
+17.6.2005:
+----------
+*'''	VID	'''
+texblending is seperated into alpha and rgb handling
+mostly REPLACE is used for alphas
+
+
+15.6.2005:
+----------
+
+*'''	L3D/Material	'''
+MaterialControl was born, similar like modifiers but totally user controlled
+and can be accessed per instance
+
+14.6.2005:
+----------
+
+*'''	Particle	'''
+added offset from spawnposition, and emitter startvel
+fixed bug with gl_points (dont allow textures !!)
+l3d particles wont remove their system from drawing when active particle exist anymore
+smooth points, and point params
+
+*'''	VID	'''
+added manual "GL_EXT_texture_rectangle" support that sets GLEW_NV_texture_rectangle
+
+
+11.6.2005:
+----------
+
+*'''	Particle	'''
+various bugfixes on lerping regarding too big age
+
+*'''	L3D Lights	'''
+lights can now be l3d nodes too
+
+*'''	ActorNode	'''
+bugfix on geom destruction
+
+
+9.6.2005:
+---------
+
+*'''	List2D	'''
+can be linked to l3dnodes so they resemble screenspace position of 3d pos
+
+*'''	List3D	'''
+bugfix on free
+
+7.6.2005:
+---------
+
+*'''	Particle	'''
+bugfix in GPU drawing code (fed wrong offset vectors)
+added emitter pos/dir lerping on spawn, much smoother
+lerping of dir may be a bit incorrect (not normalized atm)
+
+6.6.2005:
+---------
+
+*'''	Particle	'''
+fnpublish fixes, and moved particle size to particle
+
+*'''	FrameFX	'''
+added clear buffers for depth/color
+fnpublished
+
+
+5.6.2005:
+---------
+
+*'''	Model	'''
+mesh->nolock for bump mapping
+
+*'''	GPU	'''
+the bumpmap shaders had inproper tex matrices
+also made them "sunlit" ie infinite parallel light
+
+*'''	3DFileFactory	'''
+added support for proper tangent creation
+
+
+4.6.2005:
+---------
+
+*'''	FrameFX	'''
+it w0rx0rs
+
+*'''	TileBased Texturing	'''
+#ifdefed it, cause it wont last forever
+
+*'''	Material	'''
+bugfixes around modifiers
+new way of handling texcoord modifieres
+added a "center" function
+
+2.6.2005:
+---------
+
+*'''	Texture	'''
+cleaned it up a bit, still not perfect
+seperated Texture modifications and Texture upload
+also made Texture_getGL a function out from the popGL stuff
+
+*'''	GpuProg	'''
+added GpuProg_getGL to retrieve code from runtime
+
+*'''	Draw Shader	'''
+fixed crashbug on "notextures" flag
+
+*'''	VID	'''
+added screenshot making
+bound to F3 (jpg) and F4 (tga) keys
+
+
+
+25.5.2005:
+----------
+
+*'''	FrameFx	'''
+finally gets implemented, some basic thinking and setup is being done
+
+*'''	PubClasses	'''
+shaderparams got accessible
+
+
+24.5.2005:
+----------
+
+*'''	TBTerrain	'''
+really the decals are accurate now ;)
+
+22.5.2005:
+----------
+
+*'''	Material	'''
+TileBased texturing was added to .mtl definition
+
+
+19.5.2005:
+----------
+
+*'''	TBTerrain	'''
+the decals now work with full accuracy
+
+
+18.5.2005:
+----------
+
+*'''	Texture/Material	'''
+the sampler stuff was removed, better do redundancy but keep the engine clean from the
+raytracer project stuff
+
+*'''	TBTerrain	'''
+added TBTerrainDecals, untested and need FP
+
+*'''	VID	'''
+threw out the fixed vertex arrays and did a "meshbuffer"
+ideally will allow VBO some day for stream drawing
+
+
+11.5.2005:
+----------
+
+*'''	Texture '''
+added Texture sampling, still lacks proper handling of all types and filtering
+might rip from MESA
+
+*'''	Material	'''
+added sample function
+fixed bug on missing texture matrix creation (now done on update)
+added support for 3d translations/scale/rot
+
+*'''	Shader	'''
+basic sampler
+
+21.04.2005:
+-----------
+
+*'''	Shader	'''
+added supportive use of crossbar within a decal blend pass
+also removed lighting in pre- "colorpass" passes
+
+*'''	TBTerrain	'''
+some more fixes
+
+
+16.04.2005:
+-----------
+
+*'''	Particle	'''
+sped up velocity rotation greatly,
+added single triangle particles
+
+*'''	PubClasses	'''
+trackid/prskey so that scenenode/actornode can be "animated" thru
+normal animation
+
+15.04.2005:
+-----------
+
+*'''	List2D	'''
+finally rewrote it
+
+
+13.04.2005:
+-----------
+
+*'''	PubClasses	'''
+and even more..
+
+
+
+11.04.2005:
+-----------
+
+*'''	List3D	'''
+added glut geometric primitives as type
+also fixed issue with unlinking and freeing of l3dnodes
+
+
+10.04.2005:
+-----------
+
+*'''	Material	'''
+materialobects are "instances" of materials, they have the most important values of a material
+
+*'''	PubClasses	'''
+a yeah again..
+
+
+9.04.2005:
+----------
+
+*'''	Shader	'''
+fixed issues with shader compilation, smarter handling of colorpasses
+
+
+8.04.2005:
+----------
+
+*'''	List3D/SceneNode	'''
+now have namespaces and namegroups as identifiers for each node
+
+
+*'''	Pub...	'''
+more classes, to be filled with content now
+
+
+7.04.2005:
+----------
+
+*'''	PubSceneNode, PubVector3	'''
+function publishing for those classes
+
+*'''	f3d reader	'''
+fixed a bug with the modelimport
+
+6.04.2005:
+----------
+
+*'''	ParticleEmitter	'''
+ParticleEmitters are now the main handle to a particle system,
+all emitters render into the same particlesystem
+particlesystems are then drawn before FX layers
+
+
+4.04.2005:
+----------
+
+*'''	Some	'''
+moved the environment var hanlding to appropriate files
+
+*'''	Shader	'''
+added better handling of crossbar functionality for decals
+to get the terrain4tex shader run in singlepass at a card with 4 units
+
+
+3.04.2005:
+----------
+
+*'''	ParticleCollection	'''
+the idea for the static particle system was born
+
+*'''	All	'''
+nicer headers with a short description of most files/classes
+along with their memory management
+
+2.04.2005:
+----------
+
+*'''	TBTerrain	'''
+support for all layers and texRIDs, proper submitting of tileclass textures to tileatlas
+
+*'''	S3D Loader	'''
+supports skybox,fog and sunlight
+
+1.04.2005:
+----------
+
+*'''	TBTerrain	'''
+optimized terrain update, only recalculates what it has to
+
+
+31.03.2005:
+-----------
+
+*'''	TBTerrain	'''
+changed the way vertices are smoothed and normals calculated
+
+*'''	Shader	'''
+added support for texcoord channels, to allow user defining texcoords
+
+*'''	Light	'''
+sunlight is now a "infinite light" not a point light anymore
+
+
+
+29.03.2005:
+-----------
+
+*'''	Texture	'''
+fixed issues with TILEDEF
+added border filtering for tiledef
+
+*'''	TBTerrain	'''
+put tile init and terrainvertex init in extra methods
+also added support for subquad neighborhoods
+
+
+28.03.2005:
+-----------
+
+long time no diary update...
+
+*'''	3D Math	'''
+added plane check line, to get a intersection point between line (ray) and plane
+
+*'''	List3D	'''
+added support for TBTerrain node
+
+*'''	Texture	'''
+support for "imagedata" only textures called TEX_2D_NOUPLOAD
+
+*'''	TBTerrain/gl_terrain	'''
+an all new object, linked with it are updates to
+S3D , TRN (terrain file) TLS (tileset file)
+
+TBTerrain is based on a heightmap and defined via tiles,
+a lot of precalculation is done, currently no texturing
+is supported
+
+
+16.03.2005:
+-----------
+
+*'''	Model	'''
+updated skin/morph handling and support vertex32
+
+
+15.03.2005:
+-----------
+
+*'''	Shader/Draw3D	'''
+shader now support hw skinning
+reduced max textures to 4
+
+
+14.03.2005:
+-----------
+
+*'''	VID / Draw3D	'''
+reworked standard vertexprograms
+the "basic" shader however isnt really much faster than fixed
+
+*'''	Bone	'''
+basic IK solver is in
+
+
+06.03.2005:
+-----------
+
+*'''	Bone	'''
+improved lookAT controller to work with axis limits
+
+
+04.03.2005:
+-----------
+
+*'''	Fog	'''
+is in and working :)
+
+*'''	S3D	'''
+updated loader to take external root node
+and added parameters for mesh
+
+
+02.03.2005:
+-----------
+
+*'''	Frustum	'''
+fixed the issue, the error was in Matrix44MultiplyFull !!
+
+
+01.03.2005;
+----------
+
+*'''	CameraLights Action '''
+garbage collection for - skybox,cameras, lights and projectors
+unified handling of cameras/projectors/lights thru matrix interfaces
+
+*'''	Bone	'''
+a little changes to the handling of bone controllers
+
+*'''	Bugfixes	'''
+around mesh settings (= instead ==)
+camera and order of freeing at the end
+
+
+28.02.2005:
+-----------
+
+*'''	Model	'''
+Split Mesh away to VID
+Model now as MeshObjects which have additional info about a mesh
+such as skin/material...
+
+*'''	Fixed
+
+
+24.02.2005:
+-----------
+
+*'''	MTL	'''
+MTL material loader is done and working
+
+*'''	ResManager	'''
+added support for Materials
+
+23.02.2005:
+-----------
+
+*'''	Material/Shader	'''
+the material is born, the former shader is now broken up
+into material and shader. Shader purely contains
+information how things are blend.
+While Material defines what textures/colors are to
+be used
+
+*'''	SHD	'''
+modified loader to new definitions
+
+
+22.02.2005:
+-----------
+
+*'''	S3D	'''
+Scene3D XML based static world descriptor
+loading and support for viewing in the Viewer
+is done now !
+
+
+20.02.2005:
+-----------
+
+*'''	VisTest	'''
+is done, needs testing
+does testing for camera and active projectors
+
+*'''	Projector	'''
+similar treated as Camera
+ie matrixinterface allowed and highest
+priority
+
+
+19.02.2005:
+-----------
+
+*'''	3DMath	'''
+moved frustum and bounding volume math from collision to 3dmath
+also added BoundingCone
+
+*'''	Controls/Camera	'''
+the camera data was slimmed to a minimum
+and controls via keys is now done thru a matrix interface
+
+
+17.02.2005:
+-----------
+
+*'''	VisTest	'''
+the Visibility System is born, not functioning yet so
+
+*'''	SceneTree	'''
+the State and Matrix4444 interfaces are now properly in
+also VisTest linkage is done
+
+
+14.02.2005:
+-----------
+
+*'''	SceneTree	'''
+the simple scenetree is in
+meant to be bare minimum for mostly static world
+
+
+
+13.02.2005:
+-----------
+
+*'''	3DMath	'''
+redid the matrix handling also had "row major" in once but it doesnt pay off
+
+*'''	Model/Draw3D	'''
+vertex32 should be fully operatable now
+
+11.02.2005:
+-----------
+*'''	BoneUpdate	'''
+the new Sequence is in
+
+*'''	Model	'''
+optimized the skinning a bit, not using SSE yet
+fixed a bug in VBO upload, forgot that indexbuffer changes as switched to USHORT for indices
+
+
+
+10.02.2005:
+-----------
+*'''	ALL	'''
+there is one types.h now instead of gltypes/3dtypes
+which all should include
+totally threw out all GLtypes, instead there is uint, ushort...
+hopefully this fixes redefinition errors
+
+*'''	3dmath	'''
+converted Matrix4444 operations to C style output var first
+
+*'''	3dmathSIMD	'''
+SIMD framework is sorta back, using intrinsics for SSE
+idea is to have specialies versions of skinning/particle processing
+that either use completely simd or completely fpu methods
+at run time its decided which of the two versions is picked
+user must manually check if SSE is supported before using a
+SSE function, g_VID.capSSE
+only MSDev is supported
+
+*'''	BoneSquence	'''
+prototyped, currently commented out to allow compile
+
+8.02.2005:
+----------
+
+*'''	Vertex32/Vertex64	'''
+not quite ready yet but I threw out vertex52 (which was the old default)
+32 is the lean and mean version no normals but 2 texcoord pairs (lightmap)
+64 is the full beefy version with extra tangents or 2 texcoord pairs also padded pos/normal for SSE skinning
+ideally a static (unlit) model would use vertex32 and dynamic lit models vertex64
+
+*'''	Light/List3D	'''
+the fx lights are now supposedly working
+l3dnodes take the one with highest priority and closest valid range
+if their renderflag supports RENDER_FXLIT _and_ RENDER_LIT
+Lights must be added to the list manually, but can be automatically removed after a given time
+however no garbage collection is done !
+
+also optimized what gets into the render pipeline, dont need normals if there is no light...
+
+
+7.02.2005:
+----------
+*'''	Viewer	'''
+using MI/SI
+
+
+6.02.2005:
+----------
+*'''	3DMath	'''
+Vector...X renamed to VectorX...
+
+*'''	List3D	'''
+the rewrite is almost over needs testing and light handling
+there is also no L3DMemPool anymore
+
+*'''	ParticleSys	'''
+gets a matrix as update now, to allow better spawning from model surface...
+as a result the "translated subsystem's" direction has no influence anymore
+
+5.02.2005:
+----------
+
+*'''	ALL	'''
+major rewrite of entity/worldtree/collision/lua ... has started
+
+*'''	List3D	'''
+takes over many functions of worldtree, is now sorta mini rendertree
+lots of redundancy was killed 
+
+
+27.01.2005:
+-----------
+
+
+-----------------
+eVAC II ends here
+-----------------
+
+eVAC is dead long live LUXINIA !
+
+some notes what were the keyaspects of evac2:
+- particles
+- shaders
+- basic scripting
+- physics thru ode
+- single world, hierarchical bounding sphere culling
+
+what was good:
+mostly the graphics stuff was kept, still a lot of hack section
+on shader compiling.
+nearly all features were in and worked to a degree
+
+what was bad:
+lots of redundant matrices, and inter dependencies.
+very hard to "unty" when objects were removed.
+entity system was a big hack, ode didnt have good
+joint handling.
+scripting wasnt fully used and not as easy to access
+
+for the game, the main issue was the fully 3d world
+which is too hard to setup levels for when there is no
+easy way to create levels quickly, but have to build
+all geometry. hard to add "meta knowledge" about world...
+eventually it let back to the sorta tile-based idea of the first
+engine.
+
+
+30.12.2004:
+-----------
+
+*'''	camera	'''
+fixed issue with fov being fovy in gl but us needing fovx
+
+*'''	console	'''
+fov can no longer be a variable as pointer to camera changes, is a command now
+
+*'''	draw3d	'''
+added further support for lightmaps, should work from the GL side at least
+
+*'''	skybox	'''
+drawn after background layers
+
+
+29.12.2004:
+-----------
+
+*'''	libvisdata	'''
+addded support for LShader and LParticleSys
+
+*'''	Shader	'''
+added "name" identifier for stages 
+
+*'''	Modelnstance/List3D	'''
+added base for static lightmaps, to make them work
+we need a "per model" set of UV coords
+
+*'''	Vertex	'''
+there exist 3 different vertex formats now, a model must use one
+currently, only vertex52 will work well, but wrappers for the others
+exist.
+	typedef struct Vertex32_s{
+		float		tex[2];		// base
+		float		tex2[2];	// lightmap
+		uchar		color[4];	
+		float		pos[3];		
+	}Vertex32_t;
+
+	typedef struct Vertex52_s{	// warning currently must be in synch with f3d reader
+		float		user4[4];
+		float		tex[2];
+		uchar		color[4];
+		float		normal[3];
+		float		pos[3];
+	}Vertex64_t;
+
+	typedef struct Vertex64_s{
+		float		user4[4];
+		float		tex[2];
+		float		tex2[3];
+		uchar		color[4];
+		float		normal[3];
+		float		pos[3];
+	}Vertex64_t;
+
+
+28.12.2004:
+-----------
+
+*'''	libvisdata	'''
+added support for LLight and LCamera
+
+*'''	ParticleSys	'''
+size is multiplied at end, also colorAdd is added at the end
+meaning those two can be changed on runtime
+
+
+26.12.2004:
+-----------
+
+*'''	Shader	'''
+special parameter binding
+normalmap texgen
+
+*'''	Camera/Light	'''
+can be exchangeable now
+
+25.12.2004:
+-----------
+
+*'''	SkyBox	'''
+was born couple days ago, now works
+both "cubemap" and 6 2D maps
+
+*'''	VID	'''
+vidTextureBind now takes target as well
+vidTexturing was born to ease texbinding
+
+
+22.12.2004:
+-----------
+
+*'''	Shader	'''
+shaders allow techniques to fit system capabilities introduced
+in ascending priority
+	VID_T_UNSET,
+	VID_T_DEFAULT,		// should work with most hardware
+	VID_T_ARB_V,		// ARB_vertex_program
+	VID_T_ARB_V_TEX4,	//	'' + 4 tex units
+	VID_T_CG,			// Cg capability
+	VID_T_CG_TEX4,		
+	VID_T_ARB_VF,		// ARB_vertex_program and ARB_fragment_program
+	VID_T_ARB_VF_TEX4,
+	VID_T_LOWDETAIL,	// user set details to LOW
+	
+LOWDETAIL is now a technique not a stage anymore
+GpuProgram stages are only allowed in higher techniques, this was needed
+as it was just too unpredictable how the shader looks like if certain
+capabilities werent met
+
+also changed syntax of shaders/particle files a bit to make it a bit easier to read when many floats come in a row
+packed vectors in () separated by ,
+also added versionnumber to the headers
+
+*'''	VID	'''
+bug with vprog and fprog settings fixed
+
+*'''	Misc	'''
+edited all shaders/particle systems to meet new specs
+
+*'''	Camera/Light	'''
+are now "free floating" structs, g_CamLight.camera and g_CamLight.sunlight are now pointers
+
+*'''	Render	'''
+g_Draws not a pointer anymore
+g_Background was born to have data about ambientlight, background color and skybox
+skybox untested
+
+
+20.12.2004:
+-----------
+
+*'''	Shader	'''
+added Clone function
+
+*'''	GuiWidget / List2D	'''
+tidied up names to fit to the rest and changed malloc to genzalloc where feasible, also fixed memory leaks that way
+
+*'''	LibMath	'''
+vector16 = matrix 
+added
+Vector3Lerp, Vector3Mul (matrix multiply & vector transform), vectorCross, Vector3ScaledAdd, vectorSpreadDeg
+matrixIdentity, matrixRotate, matrixSetRotationDeg, matrixSetTranslation, matrix2EulerDeg
+matrixTranspose, matrixInvertAffine, matrixInvertRotation, matrixInvertTranslation
+
+*'''	Render	'''
+2 new renderflags BLENDADD and ALPHAMASK as quickies for appropriate blend/alphafuncs
+
+19.12.2004:
+-----------
+
+*'''	libworld.c / libentity.c / collision.c	'''
+reverted to older version (10.12.2004) as new stuff explodes system
+
+*'''	window	'''
+fixed fullscreen bug (dont call vidCheckError when there is no gl/window context !!)
+
+*'''	All	'''
+major cleanup of functions naming   
+(new / init / deinit / clear / free (no more deInit, destroy, create) 
+and "_" between "action" and "target" as proposed by DIN EIKE 71230)
+moved BoneSystem out of model in its own bone file
+
+*'''	Shader	'''
+modifiers now have target identifiers and also have a name to make them
+accessible
+
+10.12.2004:
+-----------
+
+*'''	evgl/vid '''
+evgl renamed to vid, cause it would serve as link to any drawing backend
+not necessarily GL
+
+*'''	Shader	'''
+layer renderflag added, to allow user to mark certain surfaces to be rendered
+at certain times. allows BACKGROUND, FX, TOP layer
+
+*'''	List3D	'''
+reorganised layers
+The order is : BACKGROUND, NORMAL(default), FX, TOP
+	layer:
+		BACKGROUND
+		BACKGROUND_FRONT_TO_BACK,
+		NORMAL ...
+		FX_BACK_TO_FRONT,
+		FX_FRONT_TO_BACK,
+		FX_TOP,
+		TOP
+all cept FTB/BTF are sorted after material
+the naming is just to define primary use, but what actually
+happens in the layer is totally up to the user.
+The Shader-layer value will override the base layer a user sets
+
+l3dnodes have individual material assignments, which will be used on rendering
+List3DNode_updateMaterial allows changing it for models
+
+*'''	FrameFX	'''
+framebuffer based fx, empty prototype
+
+
+9.12.2004:
+----------
+
+*'''	f3D	'''
+materials without shadernames crashed
+writing corrupted vertex colors
+
+*'''	window	'''
+fixed fullscreen toggle, added res to config
+
+*'''	Resources	'''
+ResourcesPush/Pop GL retrieve and set state for all used GL resources
+needed for fullscreen toggling
+also some minor fixes around resmanager filenames
+
+
+8.11.2004:
+----------
+
+*'''	VID	'''
+added Cg runtime support
+
+
+7.11.2004:
+----------
+
+*'''	Shader	'''
+added GPUProgram Stage to allow programmable pipeline shaders :)
+also fixed issue with swapping of modulate adds
+
+
+6.11.2004:
+----------
+
+*'''	Main	'''
+allowing of -s --server to bypass all glut stuff
+
+
+28.11.2004:
+-----------
+
+various stuff over the last weeks
+
+*'''	3dsmax	'''
+Scene, Collision and f3d Exporter
+
+*'''	Projector	'''
+added Cubemapping to fix reverse projection, however not working
+with ortho projection
+also added per pixel attenuation using 3dtextures
+
+
+18.11.2004:
+-----------
+
+*'''	List2D	'''
+l3dnodes used for drawing models
+
+*'''	Modelnstance	'''
+contains model pointer and ModelUpdate, BoneUpdate to have
+a nicer interface on a unique model instance
+
+
+17.11.2004:
+-----------
+
+*'''	WorldNode	'''
+dynamic relinking of nodes
+linking to bones
+
+*'''	ModelUpdate	'''
+morphing :)
+
+
+11.11.2004:
+-----------
+
+*'''	Projector	'''
+bugfix with projectors affecting original alpha on MODULATE mode
+
+*'''	Draw3D	'''
+bugfix with display list tex0 deactivation
+
+*'''	WorldTree	'''
+hierarchical locks of inheritance
+
+
+7.11.2004:
+----------
+
+*'''	BoneControl	'''
+added functions, need to test though
+
+
+6.11.2004:
+----------
+
+*'''	BoneSys	'''
+*'''	Animation	'''
+spent the last days on updating the way bonesystem and animation are handled
+BoneControl and BoneSysUpdate were born to make changes easier
+
+also Animation blending was introduced that way :)
+
+1.11.2004:
+----------
+
+*'''	WorldTree	'''
+more wrappers for collision
+
+*'''	Draw2D/List2D	'''
+minimize state changes
+
+Zet
+
+*'''	LUA	'''
+LUA is melted with the entity system
+
+31.10.2004:
+-----------
+
+*'''	Collision	'''
+*'''	CollisionModel	'''
+spent the last days on a nicer interface for the collision system
+espcially allowing easier creation of complex shapes
+
+*'''	FileSystem	'''
+fixed bug with FS_gets not copying anything
+
+*'''	Projector	'''
+at least the hw version works now hehe
+
+*'''	GpuProg	'''
+fixes with particles' z position
+
+27.10.2004:
+-----------
+
+*'''	Projector	'''
+past days went into this, yet unfinished so
+the idea is beinge able to project a texture onto a given model
+allows add/alpha modulated add/modulate as blendmodes
+
+
+25.10.2004:
+-----------
+
+*'''	Shader	'''
+minor fixes
+
+*'''	Frustum	'''
+unlinked Frustum from being camera specific
+this is a preparation for projective texturing
+
+
+24.10.2004:
+-----------
+
+*'''	Shader	'''
+total rewrite of how blendmodes are handled and converted to passes
+I hope it works fine, it is far more efficient and allows even
+greater variety !
+spent the last week on it, hopefully it pays off
+
+also threw out the display list "compiled" shaders, better to work with
+"raw geometry" display lists for MODEL
+
+
+19.10.2004:
+-----------
+
+*'''	GLState	'''
+major overhaul of state tracking regarding renderflags,
+this involved some resetting for display list generation and so on..
+
+*'''	Shader	'''
+bugfixes with blends/alphamask not used
+
+*'''	ResManager	'''
+some fixes regarding display list compile
+
+*'''	Model	'''
+BoneSys was born for "working standalone"
+further work on animation handling needs to be done
+also some more stats to keep track of how many tris are rendered
+
+*'''	Frustum	'''
+the sphere check first checks with "Frustum sphere" then the last used plane and so on
+
+
+18.10.2004:
+-----------
+
+*'''	Texture	'''
+user must specify how texture should be uploaded currently COLOR/ALPHA with or without mipmapping
+added support for such specifications in shader/particle script
+
+*'''	Shader	'''
+wrote the GL_SHADER crossbar modes
+
+17.10.2004:
+-----------
+
+*'''	IModel	'''
+added ICollisionShape prototypes
+
+*'''	CollisionModel	'''
+prototypes to allow models to have a more decent collision representation
+
+*'''	Shader	'''
+bugfixes with blends and pass generation
+overhaul of pass generation
+
+*'''	f3D	'''
+bugfixes with mesh pointer, and primtype of instances, new version
+
+16.10.2004:
+-----------
+
+*'''	3DFF	'''
+allow indices optimizing for multiple primitive groups, but continue to disallow for strips
+dont remap indices if we are a instance or have multiple prim groups
+
+15.10.2004:
+-----------
+
+*'''	List3D	'''
+fix with vertex arrays being disabled in particles
+also auto enable vertex colors for models
+
+
+14.10.2004:
+-----------
+
+*'''	Collision	'''
+basics structs and general idea of how it would work ;)
+
+
+13.10.2004:
+-----------
+
+*'''	Collision	'''
+starting on integrating ODE
+
+...
+
+*'''	Particle	'''
+some error fixing around the visbox
+
+
+9.10.2004:
+----------
+
+*'''	FileIO	'''
+totaly switched to new filesystem
+
+
+8.10.2004:
+----------
+
+*'''	ResManager	'''
+bugfix in tangent creation
+
+*'''	Log	'''
+overwrites old file
+
+*'''	WorldTree	'''
+camera fix
+
+*'''	VID	'''
+resets of blendfunc
+
+*'''	Particle	'''
+added turbulences
+fixed bug with velocityVar, sizeAge3
+
+
+
+7.10.2004:
+----------
+
+*'''	3DMath	'''
+changed Vector functions to VectorBlah(out, ...)
+
+*'''	Particle	'''
+another bugfix session on it, some copy/paste bugs
+and driver issues on SIS (once again..)
+
+*'''	World	'''
+minor fix with camera
+
+
+6.10.2004:
+----------
+
+*'''	Particle	'''
+first draws, then updates in List3D
+uses Matrix4444 as usual
+default "direction" is (0,0,1)
+updating autosets visbox
+_start and _end function
+
+*'''	LinkedList2	'''
+BubbleSort works
+
+*'''	Model	'''
+fixed bug with hardware skinning & software skinning
+
+
+5.10.2004:
+----------
+
+*'''	LinkedList2	'''
+a few more macros
+
+
+4.10.2004:
+----------
+
+*'''	Particle	'''
+put the renderflag into the particle draw func
+not part of list3d anymore
+
+
+
+3.10.2004:
+----------
+
+*'''	VID	'''
+separated texture index into
+TEX, TEX_COMPILED, SHADER, SHADER_COMPILED
+
+*'''	Console	'''
+fixed bug with wrong exec command string
+
+*'''	IModel	'''
+fixed various bugs with asserting optimizations
+
+*'''	Animation	'''
+changed to using the macro linkedlist2
+
+*'''	3DFF	'''
+optimizations/stripifier now works
+
+  
+2.10.2004:
+----------
+
+*'''	commandline	'''
+changed modeltypes a bit
+dynamic_va ..
+
+*'''	Console	'''
+variable/command naming
+and added command to load models to viewer
+  
+*'''	ResManager	'''
+first looks if file exists in given path,
+if not or no path specified looks in default dir
+
+1.10.2004:
+----------
+
+*'''	3dff	'''
+fixing read/write of f3d file format
+
+*'''	Resmanager	'''
+fixed bug forgetting attrib pointers in display list
+
+*'''	IModel	'''
+parentlist creation in IModel_linkSkin  
+
+
+
+30.9.2004:
+----------
+
+*'''	VID	'''
+textureindex < 1000 = single texture
+textureindex < 2000 = shader
+textureindex < 3000 = single texture compiled
+textureindex > 3000 = shader compiled 
+
+*'''	Shader	'''
+shaderflag SHADER_ANIMATED set, when modifiers or animation sequence exist, ie the shader is not static
+
+*'''	Draw3D	'''
+Draw_ModelMesh_shader, renders mesh with shader/texturebind
+Draw_ModelMesh_basic, renders mesh raw, you can specify if mesh's matrix is to be used or not
+
+DrawModelRes... now support shaders too
+
+*'''	List3D	'''
+removed shader setup
+
+*'''	Resmanager	'''
+Model disply list compiling changed
+
+
+29.9.2004:
+----------
+
+*'''	IModel	'''
+IModelFixSkin auto builds skinmesh list if there isnt one.
+useful to know exactly the bones used with a skin
+IPrimtiveGroup contains material info now
+
+*'''	3DFF	'''
+the external converter app
+f3d writing
+
+
+
+27.9.2004:
+----------
+
+ALL
+
+*'''	Clean up	'''
+breaking headers away, cleaning up codebase
+
+
+25.9.2004:
+----------
+
+*'''	IModel	'''
+added a bunch of helpers and the IModelFixSubMaterial func
+all fix funcs should be done then
+
+*'''	Draw3D	'''
+added per vertex light attenuation to the bump mapping
+
+
+24.9.2004:
+----------
+
+*'''	3DMath	'''
+moved more functions to macros, changed the Copy defines a bit
+VectorCopyX(a,b) needs a normal array,
+VectorCopyXp(a,b) can use any pointer using memcpy
+
+*'''	Model	'''
+optimized skinning further
+
+*'''	Draw3D	'''
+hardware skinning now working a lot better, still not fool proof so
+
+
+
+23.9.2004:
+----------
+
+*'''	Model	'''
+okay skinning is back to how it should :) stupid ogl coord axis...
+the fix was to "MatrixFix" all root bones, but not fixing the mesh-matrix anymore, I think this was the cleanest way
+to deal wit the conversion of 3dsmax to ogl
+also played with hardware skinning it is somewhat working, just not with VBOs (buuuh)
+
+*'''	ResManager	'''
+display lists & bumpmap will not work on ATI now we convert to VA
+
+*'''	Shader	'''
+bump mapping works again after back to attrib pointer
+
+22.9.2004:
+----------
+
+*'''	linkedlist2	'''
+added lxListNode_getAtOffset(head,base,browse,offsetindex)
+kinda self explanatory, however browse will be NULL if we go by the head 
+also added lxListNode_sortBubble(head,Type,compare, CPR)
+though not working
+
+*'''	IModel	'''
+optimized primitve & vertex asserting quite a bit, much faster now
+added the Fix functions, only multimaterial breaking is left
+
+*'''	List3D	'''
+added support for DrawHelpers
+
+*'''	Model	'''
+function called MeshMatrixFixVertices will unlink bone reference and precompute all vertex transfomrs
+
+*'''	3DMath	'''
+changed some function names fixed bug in Matrix44VectorRotate 
+
+20.9.2004:
+----------
+
+*'''	IModel2Model/ MM loading...	'''
+wohoo at least static models work now =)
+although the fixes like multimaterial breaking and such arent there yet.
+
+billions of fixes in the linkedlist2.h and imodel.c/h
+
+*'''	Draw 3D	'''
+unfortuantely need to normalize normals now on gpu because of instancing and shared vertices
+I cannot precompute them
+
+*'''	Model	'''
+introduced modeltype MODEL_COMPILE to specially flag display generation
+
+19.9.2004:
+----------
+
+*'''	IModel	'''
+filling the prototypes
+
+
+18.9.2004:
+----------
+
+*'''	MM Loading	'''
+redid using IModel
+
+*'''	IModel2Model	'''
+started on the conversion func
+
+
+17.9.2004:
+----------
+
+*'''	Draw3D/Resmanager	'''
+reverted attribpointer6 to secondary color
+
+*'''	IModel	'''
+header should be near to final now
+
+
+Zet
+
+*'''	MemoryManager	'''
+duno what he does, but he works on it hehe
+
+16.9.2004:
+----------
+
+*'''	ALL	'''
+followed the naming convention of _s and _t for structs/typedefs
+
+*'''	MemoryManager	'''
+merged with Zet's MemoryCluster makes a new file and added MemoryStack to it
+
+Zet
+
+*'''	LinkedList2	'''
+a new list entirely based on macros :) will replace the old linkedlist
+
+*'''	LinkedListPrimitives	'''
+typedefs for standard lists, that contain either pointers or data like vectors
+
+*'''	MemoryCluster	'''
+a memory manager that allows management of equally sized memory chunks managed in a cluster array
+
+
+15.9.2004:
+----------
+
+*'''	Bones	'''
+added invtransforms
+
+*'''	Model/ResManager/shader	'''
+only adding texunits that are needed into displaylist
+
+*'''	Model/Draw3D	'''
+moved weight fixing from modeldeform to skininit
+added hardware skinning, will work with 2 weights and if
+mesh  has no shader
+model has less matrices than capProgramEnv
+
+
+14.9.2004:
+----------
+
+*'''	Memory	'''
+packed all memory pools in common and added buffer pool
+
+*'''	Model/ IModel	'''
+okay the mess has started, changed model to the new slim version, changed software skinning accordingly
+
+version is not working until imodel loader is done
+
+
+12.9.2004:
+---------
+
+*'''	VID/Resmanager/List3D	'''
+fixed bug with VBO buffer resetting messing with DisplayList generation
+also fixed other issues with display lists and texture binds
+
+*'''	main	'''
+changed --modelview -m to --view -v
+
+3.9.2004:
+---------
+
+*'''	Shader	'''
+minor changes to BUMP modes, adding support for lightcolor & dot3(N.H)^2 for SPECBUMP
+also reverted to using SecondaryColor instead of AttribPointer to make it working with display lists
+
+Changed: reverted to attribpointer again cause I am afraid of normalization going on there
+locked display lists out of bump, ie autoconversion to VA/VBO
+
+threw out texcomb, now with a switch that directly sets GL stuff, much easier to debug with
+
+2.9.2004
+--------
+
+*'''	GLState/ VID '''
+renamed GLState to VID, also heavily changed the way initialization and so on works
+vid is now responsible for the enhanced techniques, this is far more centralized then before
+and better to get a total overview on the glstate
+also unlinked it from common.h/.c and it got its own file
+
+*'''	Texture	'''
+default texture is 1x1 127,127,255 and does uploading itself
+changed from the old tex to this one to make it useable as default bumpmap
+
+*'''	Shader	'''
+added specular bump mapping, although it looks weird
+
+*'''	Model	'''
+added tangent space update for dynamic models
+
+
+1.9.2004
+--------
+
+*'''	Shader/3DMath/Resmanager	'''
+last days spend on adding BUMP MAPPIN !! using normal maps as input shader language has a new
+texmode called VID_NORMALMAPTAN
+if the system is capable of bump mapping using vertex programs & env_dot3 we modulate with a bumpmap pass
+at the end
+
+
+
+29.8.2004:
+----------
+
+*'''	Particle	'''
+raised MAX_PARTICLES to 8192 although I think thats insane but zet wanted bloody 30 000 hehe
+after trying to debug the linkedlist, I came to conclusion to throw it out again
+now the original ParticleList is back and works well
+
+
+28.8.2004:
+----------
+
+*'''	radixsort	'''
+fixed memory corruption, but still not sorting signed ints properly
+works with floats, unsigned ints however
+
+*'''	LinkedList	'''
+if the size becomes too big tested with 1000 + particles the list becomes instable and head/tail point
+wrong
+
+
+27.8.2004:
+----------
+
+*'''	radixsort	'''
+added radixsort for arrays, returns sorted indices
+uint, int, float
+
+*'''	Particle	'''
+switched drawing to array and using radix sort
+also added texture sequence
+
+*'''	Model	'''
+some instancing fundamentels set mostly to deal with VBOs so far
+to prevent multiple uploads of vertex data
+fixed a bug with display lists activating too many texture units
+
+
+26.8.2004:
+----------
+
+*'''	3dmath	'''
+cleaned up some funcs, also changed maths to fcos/fsin found at flipcode
+also fixed Vector3Spread to work with angles greater halfpi
+
+*'''	Particle	'''
+also quite some cleanups, now gpuprogs & vbo work fine
+
+*'''	evGL	'''
+vidUnBindBuffers() to unbind vbos
+
+*'''	Model/Resmanager/Draw3D	'''
+mostly fixing issues with vbos bound when they shouldnt
+
+*'''	common	'''
+define LUX_DEVBUILD if set, app will output a lot more data to .log and system console
+also some other clean ups in the app
+
+
+25.8.2004:
+----------
+
+*'''	Particle	'''
+added VertexProgram for billboard and rotated billboard
+but rotation is still buggy
+based on delphi3d.net
+
+
+24.8.2004:
+----------
+
+*'''	ResAddModel	'''
+if model is display list and doesnt have shaders, we bake the textures into the lists
+
+*'''	List3DDraw	'''
+cleanup of draw
+
+*'''	GpuProg/ResManager	'''
+added to resources to load ASM GPU programs
+
+
+
+23.8.2004:
+----------
+
+*'''	Particle	'''
+added HSPHERE,SPHERE and MODEL rendering
+and changed magnet behavior a bit
+Particle system is sorta done now, only issue left
+would be start-end times for forces atm there is only start times
+also simple collision would be nice like kill/reflect on planes
+but not needed for now
+
+
+22.8.2004:
+----------
+
+*'''	Particle	'''
+added particle rotation and necessary funcs for 3dmath
+
+
+21.8.2004:
+----------
+
+*'''	Particle	'''
+reverted to original idea of precalculating the particle life in steps
+on rendering the lookup tables for the fx (size, color, tex) are used
+also added VBO support for particle drawing
+
+
+
+20.8.2004:
+----------
+
+*'''	TexCombine	'''
+combining of textures to a single tex now handles automatic size conversion
+
+*'''	Particle	'''
+combined drawing of subsystems is born
+this allows all subsystems be treated with a single draw call, to handle proper sorting
+
+
+19.8.2004:
+----------
+
+*'''	LinkedList	'''
+fixed issue with NodeSortByFlag getting the correct minimum object
+
+*'''	Particle	'''
+further tweaking fixing bugs
+
+
+18.8.2004:
+----------
+
+*'''	Particle	'''
+added support for drawing VID_QUAD
+
+
+14.8.2004:
+----------
+
+*'''	Model	'''
+on building from buffer now multimaterials create their own meshes breaking up the original
+mesh into multitple so that each mesh has only a single texture use but all share the same
+vertex data
+
+
+13.8.2004:
+----------
+
+*'''	Particle	'''
+switched fully to zets linked list
+
+*'''	LinkedList	'''
+deleting current and moving current on iterations now works
+fixed bug on listnoderemove
+
+*'''	Shader	'''
+added VID_DECAL_VERTEX and VID_COLORDECAL_VERTEX modes
+that allow blending via given vertexcolor alpha
+
+Pyr0
+
+*'''	WorldTree	'''
+should provide a basic workflow
+
+Zet
+
+*'''	LinkedList	'''
+fixed issues with iterating
+
+
+12.8.2004:
+----------
+
+*'''	Frustum	'''
+now works properly
+
+*'''	Particle	'''
+draw funcs
+
+Pyr0
+
+*'''	WorldTree	'''
+can traverse world and render it
+
+
+
+11.8.2004:
+----------
+
+*'''	Resource	'''
+on upload of models, you can specify if modelcolors are compiled into list or not
+
+*'''	Particle	'''
+gl draw func started, not operating yet
+
+*'''	Camera	'''
+added Frustum generation and Frustum cull funcs
+
+
+Pyr0
+
+*'''	worldtree	'''
+started with creation of a scenegraph, that handles
+hierarchy of the scene nodes, like objects...
+
+
+10.8.2004:
+----------
+
+*'''	List3D	'''
+can handle particle systems, though draw isnt done yet
+
+*'''	Viewer	'''
+can now be used to preview particle systems
+
+Zet
+
+*'''	LinkedList	'''
+now push/pop capability
+
+
+9.8.2004:
+---------
+
+*'''	List3D	'''
+quite different now, you can get a list3dnode on uploading to it
+but it will be only drawn if that node is updated
+on update it gets sorted into the list
+
+*'''	Renderer	'''
+the timer now calls draw before think, using glFlush in the draw, maximizes parallelism
+swapbuffer is done last
+that means the renderfps time isnt really valid anymore as it is just the time the renderer
+commands take to send to driver
+
+
+8.8.2004:
+---------
+
+*'''	Console	'''
+new command: reload, does a reinitialization of the app, ie reloading media
+does not preserve any infos but gime
+
+*'''	Particle '''
+Initialization, and subsystem update was written also added to resource system
+theoretically all "backbone" data is done. only thing left is drawing them
+and of course debug
+
+*'''	Resources	'''
+particles got added to them
+
+
+7.8.2004:
+---------
+
+*'''	PRT	'''
+all subparsers are written, whats left is initialization
+
+
+6.8.2004:
+---------
+
+*'''	Shader/Render	'''
+ShaderBlend is gone and part of gl_render, cause it might be needed everywhere ;)
+also split into RenderBlend / RenderAlpha
+
+*'''	PRT	'''
+started on the fileloader also some minor revisions to prtscript
+
+1.8.2004:
+---------
+
+*'''	Shader	'''
+lots of cleanups and the new system dealing with LIT modes works properly now
+also use of ATI_combine3 and NV_combine4 to get lowest passes possible
+
+
+31.7.2004:
+----------
+
+*'''	Shader	'''
+minor cleanups, especially fixing a inconsistency with the renderflag blendfunc
+VID_MODADD, VID_COLORMODADD added: modulated add = src*alpha + old
+inconsistency for the "LIT" modes and their representation in mpass workaround
+need to add a modulate with primary color pass
+currently "combine" is  : (old + new) * light and mpass (old + new*light)
+RESOLVED: removing all "LIT" before the last one, and the making 2 mpass same
+as combine does.
+
+
+22.7.2004:
+----------
+
+*'''	Model	'''
+vertex is now a struct replacing the 12 GLfloats of vertexdata, also changed VertexIndices to be pointers and
+vertex colors are now packed as 4 ubytes
+
+
+
+18.7.2004:
+----------
+
+*'''	ParticleSys	'''
+the position update method was written, yet a bit unsure if it will work the way intended,but we'll see.
+to optimize forces a bit better there is a "combine" force that will make it faster to apply forces,
+but must be precalculated.
+
+
+
+2.7.2004:
+---------
+
+*'''	Camera	'''
+fov is now changeable via console, and added proper storing of up/right vector
+
+
+29.6.2004:
+----------
+
+*'''	Texture	'''
+TextureCombine is a func that combines image data of a squence of textures into a single image
+Images are aligned horizontally and padded with 0 when not power of two in total
+the input must however be power of 2 and same sized
+
+*'''	ResManager	'''
+ResUploadTextureCombine
+to generate a single texture out of many filenames, at the moment the sequence name is 
+comb_"name[0]" which would mean if a image is "first" of multiple squences there would be problems at the moment.
+also incoming array of names must be "filename", "\0", "filename", "\0"...
+
+
+
+27.6.2004:
+----------
+
+*'''	Math	'''
+added polarcoordinates for a vector back & forth transfers with a slight loss in precision
+
+
+26.6.2004:
+----------
+
+*'''	ParticleSys	'''
+working on the "update" routines, when those are done, will do texture3d upload
+and drawing of particles
+
+*'''	Math	'''
+Vector3Perpendicular : creates a random perpendicular vector to incoming
+Vector3Spread : creates a random vector within a cone of given angle around incoming
+variance : outputs a random float with a variance around incoming float
+
+25.6.2004:
+----------
+
+*'''	ParticleSys	'''
+its born in code now as well, laying down structs and defines
+
+
+20.6.2004:
+----------
+
+Zet
+
+*'''	LinkedList	'''
+replaced the old one with faster version that allows sorting
+
+*'''	ParticleSys	'''
+the first draft has been written, its similar to a shader file
+and allows quite some options to script a particle system
+
+
+
+19.6.2004:
+----------
+
+*'''	MAX ExportPlugin	'''
+the .MM file format got a new entry after LocalMatrix,
+a Base Key is being dumped, pos, rot & scale.
+while this is a bit redundant information, same as for the reference matrix,
+it is easier to load for reference purposes when only specific PRS infos are
+needed.
+
+*'''	Model	'''
+additionally to the reference matrix it has reference pos, scale and rotate values
+this info is for helpers, mesh and bone and used for animation
+
+*'''	Animation	'''
+added posibility to decide between relative and absolute updates, as well as
+whether all keys are updated or rotation only
+ ANIM_ABS_ALL		1
+ ANIM_ABS_ROTONLY	2
+ ANIM_REL_ALL		3
+ ANIM_REL_ROTONLY	4
+
+*'''	MM loading	'''
+Got appropriate loaders for the new reference BaseKey, but remains
+backward compatible
+
+*'''	Log/printfs	'''
+cleaned up the error messages should be:
+"ERROR where: what" if results into a return FALSE
+"WARNING where: what" if can be continued but isnt optimal
+for debug, ie can be commented:
+  dprintf  - to console or nowhere
+  dlprintf - to console or nowhere
+normal, ie always active:
+  LUX_PRINTF  - to console
+  lprintf - to logfile
+  bprintf - to console & logfile
+
+12.6.2004:
+----------
+
+*'''	Shader	'''
+all texgen mappings now work in manual mode :)
+
+
+
+9.6.2004:
+---------
+
+*'''	Shader/Model '''
+non hw-supported reflectmapping turns disply list models to VA models
+
+
+6.6.2004:
+---------
+
+*'''	Shader	'''
+relfectmap added as possible textureflag, uses ARBexture_cube_map if available
+
+*'''	Draw3D	'''
+Added new func to allow manual calculation of texcoords per texunit, mostly used
+for old hardware
+
+*'''	GLState	'''
+new .alt(ernative) render path, which does a few things less GL but more "brute force"
+way, was needed after finding out lack of driver support on old cards
+
+
+3.6.2004:
+---------
+
+*'''	MMOptimizer	'''
+polished it a bit more
+
+
+
+2.6.2004:
+---------
+
+*'''	Detail	'''
+GLState got a detail var
+controls the "beauty" of the renderer, that is texture size/format and animation updates
+
+VID_DETAIL_HI		32 bit fullsize		tex		4 maxweights per vertex		tex shaders
+VID_DETAIL_MED		16 bit fullsize		tex		2 maxweights per vertex		tex shaders
+VID_DETAIL_LOW		16 bit quartersize	tex		1 maxweights per vertex		no tex shaders
+
+detail var added to console
+
+Bugfix:
+triangle strips using wrong indices
+
+
+
+1.6.2004:
+---------
+
+*'''	Model	'''
+All meshes create a bone that represents them in the model hierarchy. 
+Meshes now get a pointer to their bone representative, which is used
+to render them using glMultMatrix.
+Skinned meshes are excluded from being animatable externally, just skin
+itself will animate them.
+Mesh PRS animation and hierarchy works.
+
+MODEL_DYNAMIC_DL is born, as a "rigid" only animatable modeltype using display lists
+
+
+27.5.2004:
+----------
+
+*'''	Shader	'''
+okay this is it ;) I surrender to other graphic cards, the shader
+script as is now, cannot be guaranteed to work well with all hardware
+it will need a new render pipeline based on multiple render arrays
+to make sure even crap graphic cards get the wanted results.
+until then the shader script is put on ice, but it will work well
+on single texture layer shaders for sure.
+
+
+
+25.5.2004:
+----------
+
+*'''	Draw3D	'''
+making use of GL_EXT_draw_range_elements
+
+
+24.5.2004:
+----------
+
+*'''	Shader	'''
+some more fixes to DECAL_PREV stuff
+
+
+23.5.2004:
+----------
+
+*'''	Shader	'''
+workaround for DECAL_PREV should be working lol ;)
+
+*'''	Console	'''
+added blendfunc just to play safe
+
+
+15.5.2004:
+----------
+
+*'''	Shader	'''
+Conversion from stages to passes is sorta working, what is not working is
+if the whole shader is supposed to be blended.
+Also the passes beyond first pass are "dumb", ie a pass
+for every stage, non-optimized but working.
+
+
+12.5.2004:
+----------
+
+*'''	Shader	'''
+Another major change, threw out combiners but put them to Passes
+will now use "texmodes" to set up proper environments based on
+system capabilities
+Fixed bug with startup delay of sequences
+
+*'''	List3D/Draw3D	'''
+added support for compiled vertex arrays, if a node is drawn multiple
+times and it is locked the first time its being drawn
+
+*'''	GLState	'''
+added more variables to check what combiners are available
+and track state of compiled vertex array
+
+*'''	Draw_PText	'''
+if console is active dont push/pop proj matrix
+
+
+11.5.2004:
+----------
+
+*'''	Draw3D	'''
+removed texcoord pointer completely from DrawModelMesh
+
+*'''	GL_Shader	'''
+passes now set texcoord pointers for given model, for each stage.
+
+
+10.5.2004:
+----------
+
+Pyr0
+
+*'''	GL Extensions	'''
+fixed GLee lib extension string parser
+
+*'''	Draw3D	'''
+moved texcoord pointer generation within Draw3D for every texstage
+
+
+9.5.2004:
+---------
+
+*'''	Shader	'''
+the parsing is done :) everything works now, only thing left to do is a
+proper workaround if multiple passes need to be rendered.
+
+
+8.5.2004:
+---------
+
+*'''	Shader	'''
+Sequences are now loaded and working. However sequences have a certain delay until they run properly
+
+
+
+7.5.2004:
+---------
+
+*'''	Shader	'''
+parser now reads texturecombine funcs
+
+
+
+6.5.2004:
+---------
+
+*'''	Shader	'''
+more functions added to parser
+
+*'''	Draw3D	'''
+texture pointers for all TextureUnits are set
+
+
+5.5.2004:
+---------
+
+*'''	Shader	'''
+now the very basics work (color and texture)
+
+
+2.5.2004:
+---------
+
+*'''	Common	'''
+removed CPU info stuff, as we dont make use of sse and so on in near future ;)
+added strreadfloat strreadint strunstring and FileParse_stage, which are taken from
+Zet's levelparser. FileParse_stage takes a goodword list and executes a given function
+with a given pointer if a goodword is found. 
+
+*'''	Resmanager	'''
+Shaders are now fully integrated, textureupload will look for shader file
+and return the shaderid (1000+i) if a shader was succesfully loaded.
+
+1.5.2004:
+---------
+
+*'''	Shader	'''
+the manual was updated again, now is more ready to use
+and reflects internal code changes.
+structs were changed again a bit and especially gl_shader updated
+
+*'''	3D Math ASM	'''
+removed until its really a lot faster, to allow GCC compile
+
+
+29.4.2004:
+----------
+
+*'''	SHD		'''
+the import for SHD files has some beginning 
+
+
+28.4.2004:
+----------
+
+*'''	Shader	'''
+gl_shader is almost ready, only lacks texenv.
+Shader_update now modifier and stages are setup
+
+
+24.4.2004:
+----------
+
+*'''	MemoryStack	'''
+MEMORY_EVAC 0 is deprecated, ie no way back to old memory
+
+*'''	gime	'''
+is not so weirdly raised, but every millisecond
+
+*'''	g_frames	'''
+frame counter, mainly used in AnimationUpdates
+
+*'''	Animation	'''
+throttled via g_frames atm every 7th frame is left out, this leaves options
+for dynamic throttle on lower detail settings
+animTime() is a hack to get "old faster gime"
+
+*'''	MM Loading	'''
+Dynamic models have now their weights sorted properly, ie biggest influences first
+this makes it easier to limit per vertex weights.
+
+*'''	List3D	'''
+once a node was drawn its not visible anymore, but automatically
+becomes visible if its updated, which is a hack to remove from being drawn...
+
+*'''	Shader	'''
+start with texRID 1000
+
+*'''	vid	'''
+vidShader(id) returns true if id is a shader object, ie. >= 1000
+ResData_getTextureID(id) returns texture ids within ResData
+
+*'''	Render	'''
+renderflags moved to gl_render and added:
+RENDER_SPHEREMAP using sphere mapping
+RENDER_SCREENMAP using eye linear mapping
+
+*'''	ResourceManager	'''
+added shaders to be part of resource system
+bunch of inlined "gets" for all parts of resData, eg. return &g_ResData.sounds[id];
+
+23.4.2004:
+----------
+
+*'''	3dmath	'''
+MathInit() to be used first.
+a quick table of precalcualted sin/cos values using sinPi(float) whereas Pi is already part of the func
+zigzag(float) func with a length of 2 as well and is similar to sin but in straight lines
+
+*'''	Shader	'''
+Definitions and ShaderModifier
+
+
+17.4.2004:
+----------
+
+*'''	Shader	'''
+the first draft of its definition was written
+
+
+
+15.4.2004:
+----------
+
+*'''	3dmath_ASM	'''
+at least 3dnow is slower than the normal one :/
+added some SSE as well, still slower so
+use define MATH_USESIMD to toggle their use
+
+
+14.4.2004:
+----------
+
+*'''	ProcessorInfo	'''
+struct that holds information about current system capabilities, like mmx,sse...
+
+*'''	3dmath	'''
+quicker vector/matrix copy/clear
+ASM routines added for 3DNOW support
+
+*'''	Bugfix	'''
+ModelDeform VBO was broken (wrong pointers
+
+
+12.4.2004:
+----------
+
+*'''	List3D	'''
+Added vendor specific treatment for display lists on nvidia cards to boost performance
+WARNING: does not allow unbinding textures of such objects
+
+*'''	vid	'''
+Added use of GL_SGIS_generate_mipmap extension
+
+*'''	Shader	'''
+code file dummies have been created
+
+11.4.2004:
+----------
+
+*'''	List3D	'''
+added a sorted list, each node gets sorted in this list after its texture bind
+the list is rendered to minimize state changes
+
+*'''	vid	'''
+added vendor specifc GLState, to use specialised render paths
+
+09.4.2004:
+----------
+
+*'''	Draw3D	'''
+the ColorArrayState is now set externally, allowing to turn on/off model colors
+this is only possible when use DrawModelMesh or List3D
+MODEL_XXXX_VBO have now single buffers for the model, using offsets to draw meshes
+vid.vbo = ArrayBuffer
+vid.ibo = IndexBuffer
+listID[i*2+2] = vertex offset for each mesh
+listID[i*2+3] = index offset for each mesh
+MODEL_STATIC_DL now has a list for each mesh 
+listID[1+i] = each mesh
+vid.vbo = fully textured and colored model 
+use DrawModelRes(i) or DrawModel(m,-2) to call the big list.
+
+*'''	List3D	'''
+new renderflags: 
+lookat  = object will always face camera
+nocolor = turn off color array
+Be aware List3D doesnt allow DrawHelpers to shorten rendertime
+Layer contain pointer arrays now, quicker for sort
+
+*'''	Animation	'''
+now does update the model with a chance of 66% per frame, is frequent enough
+to be smooth
+
+*'''	Model	'''
+hitmesh pointer to the mesh used as hitmesh
+meshes that are pointed towards by this are not rendered nor added to List3D
+
+*'''	ev2main	'''
+on modelviewer you can use staticva to test performance for them... staticgl is gone
+but used when no modeltype is specified
+render.fps is now averaged
+
+*'''	vid	'''
+define VID_USEBEST to enforce use of best extensions
+GLState struct that contains current state (tex bind, tex envmodes...)
+more perfomance helpers for VBOs
+
+
+08.4.2004:
+----------
+
+*'''	List3D	'''
+revived, and working =) just without sort yet
+when adding a new item to the list you need both layer and slot #
+you must set slot # manually (0-15) but can getList3DSlot(layer #)
+layers are drawn from 0 to 15
+
+*'''	DrawModel	'''
+extended to allow drawing of single meshes, DrawModel(model, mesh#)
+if mesh# is 0 all meshes are drawn.
+DrawModelMesh is a subroutine which renders specified mesh without texture binds
+and without helpers
+
+*'''	Mesh	'''
+texturing on triangle level is no longer supported, if multimaterials are used
+first material is bound to complete mesh.
+
+*'''	vid	'''
+a few more performance helpers
+
+07.4.2004:
+----------
+
+*'''	List3D	'''
+died, it is slower and harder to handle, not worth the work
+
+06.4.2004:
+----------
+
+*'''	List3D	'''
+was born, not quite ready to use yet.. it is meant to be quicker and easier
+type of drawing but I already see issues which I likely cant get around easily
+key idea is to be able to sort renderer before each element is drawn. sort for
+texture binds and other renderfx.
+
+03.4.2004:
+----------
+
+*'''	Timer	'''
+new timer that makes the app a straight workaholic, ie the glutIdleFunc is used, so it runs
+think and render always compared to old timer which uses fixed fps.
+The new timer raises gime by 1 every 850ns, whereas oldtimers raise gime by 20 with every think() call.
+
+use define TIMER  0 = idle 1 = fixedfps  2 = glutdefault
+int getFPS(); returns the FPS the whole app has.
+this needs to be used at several points, especially keyinputs needed to be slowed down accordingly.
+with ConVar drawfps you can show/hide an fpscounter.
+
+g_maxfps was also added and can be changed via ConVar as well, a minimum of 15 was hardcoded.
+
+*ResIndependent'''
+mistake in last log 0,0 is origin at bottom/left and 640,480 is top/right ! just like before..
+
+
+01.4.2004:
+----------
+
+*'''	Bugfix	'''
+Changed g_Draws and g_Viewer to global pointers instead of structs
+but the actual bug was in the console parser for variables which used int instead of uchar/uchar for VAR_BOOL
+fixed this.
+
+*'''	ResolutionIndependent	'''
+the 2d draws are now independent from resolution ie always same result
+just the console font gets smaller accordingly, to allow more being written
+screen positioning is done with 640x480 as reference ie 0,0 top left 640,480 are bottom right at any 2d draw funcs.
+make sure 2d draws will always allow float for positioning.
+
+*'''	Draw_PText	'''
+gets a scale value as 3rd parameter now (float)
+
+*'''	ResolutionChanges	'''
+the app can now be changed in display resolution at runtime, even switching to fullscreen works :)
+new console command:
+changeres (winres-int) (fullscreen-boolean)
+	WR640x480x16 = 0,
+	WR800x600x16 = 1,
+	WR1024x768x16 = 2,
+	WR640x480x32 = 3,
+	WR800x600x32 = 4,
+	WR1024x768x32 = 5
+
+*'''	gime	'''
+global var that gets raised with every think cycle
+
+31.3.2004:
+----------
+
+*'''	MemoryStack	'''
+This serves the purpose to work against memory fragmentation. It can only be used to malloc
+not to free. Because of that its used for the ResourceData (cept textures which still use malloc 
+but only once with immediate free) Which is completely flushed on Destroy.
+Also it doesnt allow any reallocs yet.
+
+the #define MEMORY_EVAC allows to switch back to normal mallocs if set to 0
+g_ResMemStack is used for Resources
+void *reszalloc(size) this defaults to g_ResMemStack
+void *MemoryStackMalloc(&mempool,size) 
+
+So all data that should remain should use normal malloc or its own MemoryStack. 
+
+
+*'''	Light	'''
+was reduced in complexity of GL assigns, cause those seem to have a big impact on performance.
+specular !!
+
+
+30.3.2004:
+----------
+
+*'''	Log File	'''
+use LogPrintf to log to file (default file: evac2.log)
+lprintf is a define for LogPrintf, alter to LUX_PRINTF if you want full output to LUX_PRINTF
+bprintf calls LogPrintf and LUX_PRINTF
+
+*'''	Cleanup		'''
+is sorta done, mostly naming convention and organizing headers and files in a more generalized fashion.
+global vars defined in source files start with l_
+global vars defined in headers start with g_
+Order of a header should be:
+	include
+	defines
+	typedefs
+	global vars
+	functions
+Order of a source file should be:
+	include
+	local vars
+	functions
+
+*'''	Window	'''
+This holds information about fullscreen/windowed and window dimensions and positions
+
+*'''	Camera	'''
+Put in all relative data for camera in a struct. As modelview matrix is now changed
+use vidLoadCameraGL() to work in 3d space.
+there is a single g_CamLight.camera.
+
+*'''	Light	'''
+Struct with all info for a light. Is meant to allow multiple lights
+atm g_CamLight.sunlight is solely used.
+
+*'''	Draw2d/3d	'''
+collection of funcs to perform drawings to the screen
+
+*'''	Resources	'''
+Resourcemanager loads models, textures, animations and sounds
+
+*'''	Sound	'''
+the Listener is global now and each sound has its own information about position...
+soundloading was unified with other resources via resmanager

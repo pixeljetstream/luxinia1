@@ -1,0 +1,18 @@
+#include <resourcecustom.h>
+#include "resource.h"
+
+GLFW_ICON               ICON  "luxinia.ico"
+STRINGTABLE 
+BEGIN
+    IDS_FORCEDARGS				""
+	IDS_PATH_OSUSER				""
+	IDS_PATH_USERSUB			""
+	IDS_PATH_SCREENSHOTS		"/screenshots"
+	IDS_PATH_CONFIG				"/base"
+	IDS_PATH_LOG				""
+
+	IDS_CUSTOM_LOGOBIG			"base/textures/logo1.tga"
+	IDS_CUSTOM_LOGOSMALL		"base/textures/logo2.tga"
+	IDS_CUSTOM_LOGOCLEARCOLOR	"{0,0,0,0}"
+	IDS_CUSTOM_LOGOTIME			"4000"
+END

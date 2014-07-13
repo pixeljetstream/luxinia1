@@ -1,0 +1,66 @@
+!!ARBvp1.0
+
+# NORMAL Shader 
+#	posinv !
+#	0 light, 2 textures
+#	
+#	computes tangent space light direction vector
+#	output color is lights1-3+ambient0
+
+#	sunlight: point light, no attenuation	light[0]
+#	fxlights: point light, attenuation 		light[1-3]
+#	fogcoord: distance to eyeplane
+#		tex0: texmatrix
+#		tex1: cubemap coords for tangent space light vector
+#
+#	by Christoph Kubisch
+
+# cause we use multi pass
+OPTION ARB_position_invariant;
+
+# Incoming vertex attributes:
+ATTRIB inColor = vertex.color;
+ATTRIB inPos = vertex.position;
+ATTRIB inNormal = vertex.normal;
+ATTRIB inTex0 = vertex.texcoord[0];
+ATTRIB inTangent = vertex.attrib[14];	# tangent 
+
+# Outgoing vertex attributes:
+OUTPUT outColor = result.color;
+OUTPUT outTex0 = result.texcoord[0];	# normal map coords
+OUTPUT outTex1 = result.texcoord[1];	# cubemap coords
+
+# Parameters:
+PARAM lightpos =  {0.577,0.577,0.577,1} ;
+PARAM lightcolor = state.light[0].diffuse ;
+PARAM mtex0[]		= { state.matrix.texture[0].row[0..1] };
+
+TEMP ldir;				# Light_t Direction texture space
+TEMP binormal;			# Binormal
+
+# Compute Binormal
+	XPD binormal, inNormal, inTangent;
+	MUL binormal, binormal, -inTangent.w;
+	
+# Rotate light direction to TextureSpace
+# ldir = light vector (TS)
+	DP3 ldir.x, lightpos, inTangent;
+	DP3 ldir.y, lightpos, binormal;
+	DP3 ldir.z, lightpos, inNormal;
+	# if on backside then ldir.z is negative
+	# in that case clear xy directions to make sure
+	# dotprod will always be 0
+	SLT	ldir.w, ldir.z, 0.0;
+	MUL ldir.w, ldir.w, 5.0;
+	MAD ldir.z, ldir.w, ldir.z,ldir.z;
+	MOV outTex1, ldir;
+	
+	
+# Output Texcoords
+	DP4		outTex0.x,	mtex0[0],	inTex0;
+	DP4		outTex0.y,	mtex0[1],	inTex0;
+
+# Output Color
+	MOV	outColor, 0;
+
+END
