@@ -17,7 +17,7 @@ If not mentioned otherwise, the bottom license applies (NET-BSD)
 
 ### backend
 
-Released under MIT license. Newer version might be found at https://github.com/pixeljetstream/luxinia2
+Released under MIT license. 
 
 * luxplatform:
 Core lib for file operations and compiler specific defines/asserts
