@@ -63,6 +63,10 @@ Engine architecture
 
 A brief overview on the internal components, best combined with the documentation found at http://luxinia.de/doc/frames/
 
+* [SHD Shader   definition script](engine/source/luxinia_shdscript.md)
+* [MTL Material definition script](engine/source/luxinia_prtscript.md)
+* [PRT Particle definition script](engine/source/luxinia_mtlscript.md)
+
 ![arch overview](https://github.com/pixeljetstream/luxinia1/raw/master/engine/source/luxinia_architecture.png)
 
 Luxinia 1 Engine SDK License
