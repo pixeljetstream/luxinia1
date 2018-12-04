@@ -352,7 +352,7 @@ You can either use the variables directly (same name) or vie Semantics.
 [-Semantics: VIEWPORTSIZEINV, VIEWPORTSIZEINVERSE, VIEWPORTDIMENSIONINV, VIEWPORTDIMENSIONINVERSE, INVERSEVIEWPORTDIMENSIONS-]
 
 *Skinning
-**program.env[0..VID_BONESLAST] (ARB_prog) or [[<<]] @@'''float4x3 Bonesmatrices[VID_BONES]'''@@ [[<<]] [-Semantics: BONES, BONESMATRICES-] (Cg)&&&
+**program.env[0..VID_BONESLAST] (ARB_prog) or [[<<]] @@'''float4x3 Bonesmatrices[VID_BONES]'''@@ [[<<]] [-Semantics: BONES, BONESMATRICES-] &&&
 matrices can contain up to VID_BONESMAX float4s saved as float4x3 matrices
 ***VID_BONES = ((96 or 256 depending on hardware) - rendersystem_hwbonesparams)
 ***VID_BONESMAX = 3* VID_BONES
@@ -362,16 +362,16 @@ matrices can contain up to VID_BONESMAX float4s saved as float4x3 matrices
 
 *Particle general&&&
 no ViewMatrix needed, as particles are in viewspace&&&
-Cg provides particle lightmap texgen matrix directly &&& @@'''float3x4 PRTlmtexgen'''@@ [[<<]] [-Semantics: PRTLMTEXGEN-].
+Cg provides particle lightmap texgen matrix directly [[<<]] @@'''float3x4 PRTlmtexgen'''@@ [[<<]] [-Semantics: PRTLMTEXGEN-].
 								
 *Particle non-instanced mesh
-**program.local[1..32] (ARB_prog) or [[<<]] @@'''float4 PRTvertexoffsets[32]'''@@ [[<<]] [-Semantics: PRTVERTEXOFFSETS-] (Cg)&&&
+**program.local[1..32] (ARB_prog) or [[<<]] @@'''float4 PRTvertexoffsets[32]'''@@ [[<<]] [-Semantics: PRTVERTEXOFFSETS-]  &&&
 vertex offsets
-**program.local[33..64] (ARB_prog) or [[<<]] @@'''float4 PRTtexoffsets[32]'''@@ [[<<]] [-Semantics: PRTTEXOFFSETS-] (Cg)&&&
+**program.local[33..64] (ARB_prog) or [[<<]] @@'''float4 PRTtexoffsets[32]'''@@ [[<<]] [-Semantics: PRTTEXOFFSETS-]  &&&
 texture offsets 
-**program.local[0] (ARB_prog) or [[<<]] @@'''float2 PRTtexwidth'''@@ [[<<]] [-Semantics: PRTTEXWIDTH-] (Cg)&&&
+**program.local[0] (ARB_prog) or [[<<]] @@'''float2 PRTtexwidth'''@@ [[<<]] [-Semantics: PRTTEXWIDTH-]  &&&
 texturewidth float2(texwidth,1)
-**program.local[65..67] (ARB_prog) or [[<<]] @@'''float3x4 PRTglobalaxis'''@@ [[<<]] [-Semantics: PRTGLOBALAXIS-] (Cg)&&&
+**program.local[65..67] (ARB_prog) or [[<<]] @@'''float3x4 PRTglobalaxis'''@@ [[<<]] [-Semantics: PRTGLOBALAXIS-]  &&&
 global axis for aligned particles 
 								
 **vertex.tex0 = { Index, Size, texnum, 1 }
@@ -680,111 +680,111 @@ what type state renderflag is changed.
 ----
 !! History[[#hist]]
 
-1st Draft 17.4.2004&&&
+1st Draft 17.4.2004:&&&
 This is just a basic idea about functionality. Shaders may change on implentation
 if too complex to a more rigid system with a hardcoded set of FX
 
-2nd Draft 28.4.2004&&&
+2nd Draft 28.4.2004:&&&
 moved stageflags to renderflags, moved alpha/blend to renderflag as well, this
 is easier to work with in OGL, but needs a new system for texture blending
 which needs to be done soon (mainly combine)
 
-3rd Draft 1.5.2004&&&
+3rd Draft 1.5.2004:&&&
 texture blending and combining is now set.
 
-4th Draft 10.5.2004&&&
+4th Draft 10.5.2004:&&&
 added a new custom texmode called VID_COLORDECAL, removed GL_SUBTRACT cause it brings us
 in trouble with older systems. CBF to do workaround.
 
-5th Draft 12.5.2004&&&
+5th Draft 12.5.2004:&&&
 okay texcombine is removed, instead there are fixed effect types
 possible for the combining of texlayers. depending on hardware
 I will create the proper texcombiners/multipass renders.
 
-6th Draft 2.6.2004&&&
+6th Draft 2.6.2004:&&&
 it will stay as is, although multiple textures per shader may not work well
 on all hardware until a "brute force" rendering pipeline is part of the engine.
 
-7th Draft 7.6.2004&&&
+7th Draft 7.6.2004:&&&
 added reflectmap,eyelinmap as texture coord generation mode
 
-8th Draft 31.7.2004&&&
+8th Draft 31.7.2004:&&&
 blendfunc is not valid for all passes just the first pass (first tex + color)
 also added LITMODADD and ADDMOD modes
 
-9th Draft 13.8.2004&&&
+9th Draft 13.8.2004:&&&
 added LITDECAL_VERTEX and DECAL_VERTEX modes
 
-10th Draft 30.8.2004&&&
+10th Draft 30.8.2004:&&&
 added BUMP mode
 
-11th Draft 2.8.2004&&&
+11th Draft 2.8.2004:&&&
 added SPECBUMP mode
 
-12th Draft 27.9.2004&&&
+12th Draft 27.9.2004:&&&
 changed BUMP to NORMAL and SPECBUMP to SPECNORMAL
 
-13th Draft 15.10.2004&&&
+13th Draft 15.10.2004:&&&
 LIT renamed to COLOR
 
-14th Draft 18.10.2004&&&
+14th Draft 18.10.2004:&&&
 ALPHA as texture mode to upload greyscales
 added nocolorarray renderflag
 
-15th Draft 20.10.2004&&&
+15th Draft 20.10.2004:&&&
 blendfunc taken out, heavy reorganisation of blends now part of every stage as blendmode
 
-16th Draft 1.11.2004&&&
+16th Draft 1.11.2004:&&&
 added LowDetail stage 
 
-17th Draft 6.12.2004&&&
+17th Draft 6.12.2004:&&&
 addded GPUProgram and FXShader stage, the latter is not implemented at all
 and the first doesnt allow DXPSA yet
 
-18th Draft 10.12.2004&&&
+18th Draft 10.12.2004:&&&
 layer renderflag added, to allow user to mark certain surfaces to be rendered
 at certain times. allows Zsort, Glow, Haze, Top layer (thats also the order in which they are drawn)
 removed DXPSA gpuprog type
 
-19th Draft 19.12.2004&&&
+19th Draft 19.12.2004:&&&
 modifers need a name to be accessible from gamecode
 
-20th Draft 22.12.2004&&&
+20th Draft 22.12.2004:&&&
 added techniques and shaders "values" need to be put in () vectors separated by ,
 special Textures allowed in higher techniques (skybox, normalize...)
 gpuprogram parameters will soon allow special values (campos, camdir..) to be auto linked with
 
-21th Draft 29.12.2004&&&
+21th Draft 29.12.2004:&&&
 name is a unique identifier of the stage to allow easier access to stages from gamescript
 LIGHTMAP added
 
-22nd Draft 23.2.2005&&&
+22nd Draft 23.2.2005:&&&
 split shader into "shader/material"
 so that shader only contains info how textures are blend
 
-23rd Draft 15.3.2005&&&
+23rd Draft 15.3.2005:&&&
 added "skin" versions for vertex programs
 
-24th Draft 31.3.2005&&&
+24th Draft 31.3.2005:&&&
 added "texcoord" to allow use of different texcoord channels
 
-25th Draft 16.7.2005&&&
+25th Draft 16.7.2005:&&&
 added "lit" versions for gpu programs and entrynames
 
-26th Draft 23.7.2005&&&
+26th Draft 23.7.2005:&&&
 added new Techniques for better hardware, also added new automatic shader parameters
 
-27th Draft 6.1.2006&&&
+27th Draft 6.1.2006:&&&
 the NewPass Stage is introduced to allow manual 'compiling'
 
-28th Draft 27.5.2006&&&
+28th Draft 27.5.2006:&&&
 added .dds support
 
-29th Draft 20.6.2006&&&
+29th Draft 20.6.2006:&&&
 sunreflectmap and sunnormalmap&&&
 added TEXDOTZ for special cubemaps
 
-30th Draft 2.7.2006&&&
+30th Draft 2.7.2006:&&&
 lit renamed to sunlit&&&
 added alphaTEX
 
