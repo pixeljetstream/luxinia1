@@ -53,6 +53,11 @@ Allows you to define your own window manager through lua functions.
 GLFW is used for joystick input. Was used to run luxinia
 inside wxWidgets.
 
+### projects
+
+* tutorials:
+The [tutorials](http://www.luxinia.de/md/Tutorials.md.html) showcasing several engine features.
+
 ### dependencies
 ### plugins
 ### thirdpartylibs
