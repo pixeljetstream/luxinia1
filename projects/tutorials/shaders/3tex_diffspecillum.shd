@@ -1,0 +1,186 @@
+luxinia_Shader_v310
+// Latest luxinia shader version is 310, this has been changed with
+// 0.98 it only affects the Cg stuff however.
+
+// Techniques are picked depending on the hardware capability
+// only one is used (the first that is found useable)
+// and you cannot change it after the shader was loaded.
+
+// This technique (VID_ARB_VF) is valid for most shader model 2
+// cards and above. Sm2+ cards are the majorty among gamers these days 
+// (GeForce5, Radeon9500, Intel945 and up)
+// By adding _TEX4 to the technique, it means that 4 textureunits
+// are required.
+
+Technique:VID_ARB_VF_TEX4{
+	// From 0.98 on Cg was optimized, however it will require
+	// that both Vertex and Fragment programs must be passed.
+
+	// When using vertex/fragment programs, we must specify
+	// render passes manually. That is not needed in the 
+	// VID_DEFAULT technique.
+	
+	NewPass{
+		// the effect will have just one Pass, which 
+		// simply overwrites everything
+		blendmode VID_REPLACE;
+	}
+	GpuProgram{
+		BASE 0 "simplelighting.cg" "vertex_main"
+		// BASE means for vertexprograms that its applied for 
+		// regular geometry.
+		// If you want to code versions of the program
+		// that allow boneanimation, you can also pass
+		// those programs additionally with SKIN.
+		
+		// The first number is number of light sources.
+		// We can define up to 5 different programs
+		// depending on the light count.
+		// As we already know that we will always have 1 sunlight,
+		// we can ignore that and use the first program for all 
+		// cases.
+		// Finally provide string to programfile, 
+		// and the entryname function. The latter is not needed
+		// for lowlevel ASM shaders.
+		
+		VCG;	// The type of program, a Cg Vertex Program
+				// you can also use VPROG for ARB_vertex_program 
+				// files, which contain ASM like code.
+				// however its not allowed to mix PROG and CG 
+				// programs.
+	}
+	GpuProgram{
+		BASE 0 "simplelighting.cg" "fragment_main"
+		// similar as above, just that we picked another entryname
+		
+		FCG;	// a Cg Fragment Program
+				// similar to above, FPROG exists here as well.
+
+		param "oCampos" 0 VID_CAMPOS (0,0,0,0);
+		param "oLightpos" 0 VID_LIGHTPOS (0,0,0,0) 0;
+		param "lightdiffuse" 0 VID_LIGHTCOLOR  (0,0,0,0) 0;
+		param "lightambient" 0 VID_LIGHTAMBIENT  (0,0,0,0) 0;
+			// some automatic gpuparameters which will set values
+			// for the variables we've given names for.
+			// the number (here 0) is not used for Cg, but important
+			// for PROG GpuPrograms.
+			
+			// the keyword defines what type of variable
+			
+			// The vector in for automatic variables will often be 
+			// overwritten, but might also contain control values
+			
+			// The last parameter in thise case defines which 
+			// light's values are used. Light 0 will always be 
+			// the Sun, 1-3 the effect lights
+			
+		param "specularctrl" 0 VID_VALUE (1,1,1,16);
+			// A parameter inside the gpuprogram, which
+			// we want to control
+			// xyz will be intensity (color), w will be power 
+			// (sharpness of highlight)
+	}
+	Texture{
+		// Diffuse
+		TEX "Texture:1"; 	// material passes the texture
+		
+		// This also sets TEXCOORDx binding (for GpuProgram).
+		// texcoord 0 of the vertex is used by default and 
+		// activated. As this is the first Texture-Stage in the
+		// pass, it measn the texcoord-0 will be accessible as
+		// TEXCOORD0 in the GpuProgram. If we would call
+		// texcoord 1; then texcoord-1 would be TEXCOORD0.
+	}
+	Texture{
+		// Specular
+		TEX "Texture:2"; 	// material passes the texture
+		texcoord -1;		
+			// with -1 we disable passing dedicated texture 
+			// coordinates
+			
+			// as our model only has one set of texture coordinates
+			// and those are already passed with Diffuse texture
+			// we can speed thigns up, by disabling this here.
+	}
+	Texture{
+		// self-illumination
+		TEX "Texture:3"; 	// material passes the texture
+		texcoord -1;		
+	}
+}
+
+// This technique is mostly for shader model 1 cards
+// and even older ones with enhanced multitexturing support
+// Think along early Radeon/GeForce
+
+// It works similar to layers in a paint program, the first defined
+// texture stage is the bottom, and then you add layers on top.
+
+Technique:VID_ARB_TEXCOMB{
+	// This technique wont allow fragment/vertex programs
+	// so we build up the effect with multitexturing
+	
+	// Luxinia will try to compile the effect to a minimum
+	// number of passes. Nevertheless you shouldnt add
+	// too much layers to these old techniques.
+	
+	
+	// the first texture layer is the diffuse texture
+	Texture{
+		// Diffuse/Spec combined
+		VTEX "Texture:0";	
+	}
+	Texture{
+		// Specular
+		SPECULAR;
+		// this is a special CubeMap that luxinia provides
+		// specularity: (MAX (0,(cubedirection dot (0,0,1)))^8
+		
+		sunreflectmap;	
+		// This is a special modifier that will create
+		// texcoordinates for this Texture stage, so that
+		// view vector is reflected at vertex using its normal.
+		
+		// Further the sun position will also change the
+		// texcoordinates, in a fashion that those 
+		// who point towards the sun will be 0,0,1
+						
+		blendmode VID_AMODADD_PREV;	
+		// the blendmode for this texturestage
+		// it is a built-in mode that will do:
+		// color.previous + alpha.previous * color.tex
+		// Because color.tex contains perpixel specular using the 
+		// cubemap, we will get shiny effect where alpha value of 
+		// the previous texture was high. 
+		// The downside is that we can only use greyscale 
+		// specularity.
+	}
+	Texture{
+		// Self-Illum
+		TEX "Texture:3";
+		blendmode VID_ADD;
+	}
+	// We are done, the effect will take one or two
+	// rendering passes (3 textures used). 
+	// The vast majority of old cards will be able to do 
+	// it in one pass
+}
+// should always be specified last as a fallback, in case hardware 
+// isnt so good
+Technique:VID_DEFAULT{
+	Texture{
+		// Diffuse
+		VTEX "Texture:1";
+		// materials will pass this texture with the id 1
+		
+		// VTEX means the texture is vertexcolored: 
+		// color.tex * color.vertex
+		// Vertexcolors will also contain diffuse & ambient lighting
+	}
+	Texture{
+		// Self-Illum
+		TEX "Texture:3";
+		blendmode VID_ADD;
+		// add the self-illumination texture on top.
+	}
+}

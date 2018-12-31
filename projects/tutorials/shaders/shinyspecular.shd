@@ -1,0 +1,16 @@
+luxinia_Shader_v310
+Technique:VID_ARB_TEXCOMB{
+	Texture{
+		VTEX "Texture:0";
+	}
+	Texture{
+		SPECULAR;
+		sunreflectmap;
+		blendmode VID_AMODADD_PREV;
+	}
+}
+Technique:VID_DEFAULT{
+	Texture{
+		VTEX "Texture:0";
+	}
+}

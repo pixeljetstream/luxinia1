@@ -1,0 +1,12 @@
+luxinia_Shader_v310
+Technique:VID_DEFAULT{
+	Texture
+	{
+		// texturecolor * vertexcolor (maybe lit or not)
+		VTEX "Texture:0";
+		
+		// a special texture coordinate generator for cubemaps
+		// useful for reflections
+		skyreflectmap;
+	}
+}

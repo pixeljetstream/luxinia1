@@ -1,0 +1,7 @@
+luxinia_Material_v110
+Shader{
+	SHD "shinyspecular.shd";
+}
+Texture:0{
+	TEX "streetatlas.png";
+}

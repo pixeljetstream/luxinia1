@@ -1,0 +1,53 @@
+TODO:
+-----
+
+Local:
+------
+
+Z	T026 - custom dll (actually cuda plugin serves this?)
+Z	T031 - 2dphysics
+
+C	T030 - normalmap local + mirror
+C	T033 - normalmap tangent
+
+C	Txxx - dynparticles 				(forum-know-how)
+C	Txxx - heightmap terrain			(forum-know-how)
+C	Txxx - tile terrain					(demo)
+ 
+---
+C	Txxx - water reflection + skyscene
+C	Txxx - simple shaders 				(forum-know-how)
+
+C	Txxx - simple height-map terrain	(forum-know-how)
+C	Txxx - terrain + detailobjs			(forum-know-how)
+
+C	Txxx - animation playback (beretta shooting)
+C	Txxx - Bone IK						(forum-know-how)
+
+C	Txxx - luxf3d/modelviewer			(forum-know-how)
+
+
+Web:
+----
+Z	T010 - reg expr. (Local ??)
+Z	T011 - oo programming (Local ??)
+Z	T013 - obj management (Local ??)
+Z	T015 - zbuffer
+
+Z	T026 - dll
+Z	T027 - threads 
+Z	T031 - 2dphysics
+Z	T032 - user textures
+Z	T034 - static particle placement
+
+C	T025 - postfx convolution
+C	T028 - lvlmodel
+
+C	T024 - fbo glow mrt
+C	T029 - vehicle ref
+C	T030 - local normalmap
+C	T033 - tangent normalmap
+
+C	Txxx - dynparticles
+C	Txxx - heightmap terrain
+C	Txxx - tile terrain

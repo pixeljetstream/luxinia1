@@ -1,0 +1,128 @@
+struct vfconn
+{
+    float4 hPos : POSITION;
+	float2 tex0 : TEXCOORD0;
+};
+
+float4 arraymul(float4 arraymatrix[],int offset, float4 v)
+{
+	float4 outv;
+	outv.x = dot(v,arraymatrix[0+offset]);
+	outv.y = dot(v,arraymatrix[1+offset]);
+	outv.z = dot(v,arraymatrix[2+offset]);
+	outv.w = dot(v,arraymatrix[3+offset]);
+	return outv;
+}
+
+vfconn main_v(	float4 oPos : POSITION,
+				float2 tex0 : TEXCOORD0
+				,uniform float4x4 WVP : WORLDVIEWPROJ
+			)
+{
+	
+    vfconn OUT;
+	
+	
+    OUT.hPos = mul(WVP,oPos);
+	OUT.tex0 = tex0;
+	
+	return OUT;
+}
+
+float3 getVolumeGradient(sampler3D tex, float3 tc, float3 delta)
+{
+	float3 sampleprev;
+	float3 samplenext;
+	
+	sampleprev.x = tex3D(tex, tc - float3(delta.x,0,0)).x;
+	samplenext.x = tex3D(tex, tc + float3(delta.x,0,0)).x;
+	sampleprev.y = tex3D(tex, tc - float3(0,delta.y,0)).x;
+	samplenext.y = tex3D(tex, tc + float3(0,delta.y,0)).x;
+	sampleprev.z = tex3D(tex, tc - float3(0,0,delta.z)).x;
+	samplenext.z = tex3D(tex, tc + float3(0,0,delta.z)).x;
+	
+	return (sampleprev-samplenext);
+}
+
+void doLighting(inout float4 sample, float3 toLight, float3 volscale, 
+				sampler3D texvol, float3 tc, float3 delta)
+{
+	float3 normal = getVolumeGradient(texvol,pos,delta);
+	normal = normal*volscale.xyz;
+	float normallen = max(length(normal),0.01);
+			
+	float diff = saturate(dot(normal/normallen,toLight));
+	diff = lerp(1,diff,smoothstep(0.125,0.25,normallen));
+	
+	sample*=diff;
+}
+
+void doRange(inout float4 sample, float3 toCam, float invmaxdist)
+{
+	float fade = saturate(length(toCam)*invmaxdist);
+	// fade out
+	//sample.w *= 1-fade;
+	// or cahnge color
+	sample.xyz *= (1-fade)*2;
+}
+
+void doBlend(inout float4 color, float4 tfcolor)
+{
+	color.xyz += (1-color.w)*(tfcolor.xyz*tfcolor.w);
+	color.w   += (1-color.w)*tfcolor.w;
+}
+
+void doTransfer(inout float4 sample,float3 pos, float alphamul)
+{
+	sample = float4(pow(pos.xyz,4),sample.x*alphamul);
+}
+
+float4 main_f(	vfconn IN
+			,uniform sampler2D texraystart : TEXUNIT0
+			,uniform sampler2D texrayend : TEXUNIT1
+			,uniform sampler3D texvol : TEXUNIT2
+			,uniform float4	control
+			,uniform float4 campos			// camera position in volspace
+			,uniform float4 volscale		// for anisotropic data
+			,uniform float4 voltexsizeinv	// deltas to neighbor voxels
+	) : COLOR
+{
+	float4 raystart = tex2D(texraystart,IN.tex0);
+	float4 rayend = tex2D(texrayend,IN.tex0);
+	
+	float stepwidth = control.x;
+	float invdistfalloff = 1.0/control.y;
+	
+	float gradientwidth = control.w;
+	float3 cam = campos.xyz;
+	float3 volsize = volscale.xyz;
+	float density = control.z/stepwidth;
+	
+
+	if (rayend.w < 0.5){
+		// neutral color with alpha 0
+		return float4(0.5,0.5,0.5,0);
+	}
+	
+	float3 pos = raystart.xyz;
+	float3 dir = rayend.xyz - pos;
+	
+	float steps = floor(min(1024.0,length(dir*volsize)*stepwidth));
+	dir /= steps;
+	float4 color = float4(0,0,0,0);
+	
+	float runner = steps-0.5;
+	while (runner > 0 && color.w<(1.0-1.0/256)){
+		float4 sample = tex3D(texvol,pos);
+
+		doTransfer(sample,pos,density);
+		doRange(sample,(cam-pos)*volsize,invdistfalloff);
+		doBlend(color,sample);
+		
+		pos += dir;
+		runner--;
+	}
+
+	
+	return color;
+}

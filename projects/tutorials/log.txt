@@ -1,0 +1,177 @@
+===========================
+scalararray and staticarray
+===========================
+
+-----------------------
+runop
+-----------------------
+===========================
+scalararray and staticarray
+===========================
+
+-----------------------
+runop
+-----------------------
+ScalarArray: [scalararray (classid: 23, value: 04190328)@063EA298]
+Z:0
+Y:0	(200,200)	(200,200)	(200,200)	(200,200)	
+Y:1	(200,200)	(200,200)	(200,200)	(200,200)	
+Y:2	(200,200)	(200,200)	(200,200)	(200,200)	
+Y:3	(200,200)	(200,200)	(200,200)	(200,200)	
+ScalarArray: [scalararray (classid: 23, value: 0418AF20)@062DD038]
+Z:0
+Y:0	(100,100)	(100,100)	
+Y:1	(100,100)	(100,100)	
+ScalarArray: [scalararray (classid: 23, value: 06B20FA8)@066590B8]
+Z:0
+Y:0	(44,44)	(44,44)	(44,44)	(44,44)	
+Y:1	(0,0)	(0,0)	(0,0)	(0,0)	
+Y:2	(0,0)	(0,0)	(0,0)	(0,0)	
+Y:3	(0,0)	(0,0)	(0,0)	(0,0)	
+ScalarArray: [scalararray (classid: 23, value: 06B20FA8)@066590B8]
+Z:0
+Y:0	(44,44)	(44,44)	(44,44)	(44,44)	
+Y:1	(0,0)	(0,0)	(0,0)	(0,0)	
+Y:2	(0,0)	(0,0)	(255,255)	(255,255)	
+Y:3	(0,0)	(0,0)	(255,255)	(255,255)	
+ScalarArray: [scalararray (classid: 23, value: 06B20FA8)@066590B8]
+Z:0
+Y:0	(44,44)	(44,44)	(44,44)	(44,44)	
+Y:1	(0,0)	(0,0)	(0,0)	(0,0)	
+Y:2	(210,210)	(210,210)	(255,255)	(255,255)	
+Y:3	(210,210)	(210,210)	(255,255)	(255,255)	
+
+-----------------------
+runcurve	false	true
+-----------------------
+ScalarArray: [scalararray (classid: 23, value: 04186280)@06156598]
+I:0	(0,1,0)	
+I:1	(0.5,1,0)	
+I:2	(1,1,0)	
+I:3	(1,1,0)	
+I:4	(1,1,0)	
+I:5	(1,0.5,0)	
+I:6	(1,5.9604644775391e-008,0)	
+ScalarArray: [scalararray (classid: 23, value: 04186280)@06156598]
+I:0	(0,0,0)	
+I:1	(-0.0625,0.5625,-0.0625)	
+I:2	(0,1,0)	
+I:3	(0.56249994039536,1.125,-6.3136903608619e-041)	
+I:4	(1,1,0)	
+I:5	(1.125,0.5,0)	
+I:6	(1,0,0)	
+
+-----------------------
+bench	4x4
+-----------------------
+:runs	1024
+:runstime	0
+FLOAT SPLINE
+scalar3	2.421875
+scalar4	1
+static3	0.765625
+FLOAT ARITHMETIC
+scalar3	1.859375
+scalar4	1.25
+static3	0.5
+lua3	0.640625
+FLOAT SAMPLING
+:samples	16384
+:samplestime	0.078125
+scalar3	17.171875
+scalar4	11.21875
+FLOAT TRANSFORM
+scalar3	0.921875
+scalar4	0.875
+
+-----------------------
+bench	8x8
+-----------------------
+:runs	1024
+:runstime	0
+FLOAT SPLINE
+scalar3	8.765625
+scalar4	1.734375
+static3	1.453125
+FLOAT ARITHMETIC
+scalar3	1.46875
+scalar4	1.5625
+static3	0.796875
+lua3	2.671875
+FLOAT SAMPLING
+:samples	32768
+:samplestime	0.140625
+scalar3	19.859375
+scalar4	19.578125
+FLOAT TRANSFORM
+scalar3	1.34375
+scalar4	1.15625
+
+-----------------------
+bench	16x16
+-----------------------
+:runs	1024
+:runstime	0.015625
+FLOAT SPLINE
+scalar3	34.53125
+scalar4	4.96875
+static3	4.78125
+FLOAT ARITHMETIC
+scalar3	2.5625
+scalar4	2.875
+static3	2.359375
+lua3	10.796875
+FLOAT SAMPLING
+:samples	65536
+:samplestime	0.265625
+scalar3	39.796875
+scalar4	39.625
+FLOAT TRANSFORM
+scalar3	3.28125
+scalar4	2.328125
+
+-----------------------
+bench	32x32
+-----------------------
+:runs	1024
+:runstime	0
+FLOAT SPLINE
+scalar3	137.34375
+scalar4	17.390625
+static3	17.84375
+FLOAT ARITHMETIC
+scalar3	6.046875
+scalar4	7.703125
+static3	8.3125
+lua3	43.28125
+FLOAT SAMPLING
+:samples	131072
+:samplestime	0.546875
+scalar3	81.765625
+scalar4	81.0625
+FLOAT TRANSFORM
+scalar3	11.453125
+scalar4	7.328125
+
+-----------------------
+bench	256x256
+-----------------------
+:runs	1024
+:runstime	0
+FLOAT SPLINE
+scalar3	8722
+scalar4	1044.265625
+static3	1109.96875
+FLOAT ARITHMETIC
+scalar3	303.6875
+scalar4	407.5
+static3	533.4375
+lua3	2878.0625
+FLOAT SAMPLING
+:samples	1048576
+:samplestime	4.421875
+scalar3	659.484375
+scalar4	652.5625
+FLOAT TRANSFORM
+scalar3	669.75
+scalar4	454.390625

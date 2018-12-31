@@ -1,0 +1,32 @@
+luxinia_Shader_v310
+Technique:VID_ARB_VF_TEX4{
+	GpuProgram{
+		BASE 0 "tangentnormalmap.cg" "lit1_v";
+		VCG;
+		tangents;
+		param "lightpos" 1 VID_LIGHTPOS (0,0,0,1.0) 0;
+		param "campos" 2 VID_CAMPOS (0,0,0,1.0);
+	}
+	GpuProgram{
+		BASE 0 "tangentnormalmap.cg" "spec1_f";
+		FCG;
+	}
+	Texture{
+		TEX "Texture:1";
+	}
+	Texture{
+		TEX "Texture:2";
+		texcoord -1;
+	}
+}
+Technique:VID_DEFAULT{
+	Texture{
+		TEX "Texture:2";
+		blendmode VID_REPLACE;
+	}
+	Texture{
+		SPECULAR;
+		sunreflectmap;
+		blendmode VID_MODULATE;
+	}
+}

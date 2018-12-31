@@ -1,0 +1,21 @@
+luxinia_Shader_v310 
+Technique:VID_ARB_VF{
+GpuProgram{
+	BASE 0 "pfx_vf.cg" "vert";
+	param "texsize0" 0 VID_TEXSIZE (0,0,0,1) 0;
+	param "texsize1" 0 VID_TEXSIZE (0,0,0,1) 1;
+	param "texsize2" 0 VID_TEXSIZE (0,0,0,1) 2;
+	VCG;
+}
+GpuProgram{
+	BASE 0 "pfx_vf.cg" "frag_add2";
+	param "weights" 0 VID_ARRAY (0,0,0,0) 2;
+	FCG;
+}
+Texture{
+	TEX "Texture:0";
+}
+Texture{
+	TEX "Texture:1";
+}
+}

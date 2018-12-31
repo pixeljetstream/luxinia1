@@ -1,0 +1,12 @@
+luxinia_Shader_v310
+
+RenderFlag{
+	nocull;
+	unlit;
+	nocolorarray;
+	alphafunc GL_GREATER (0.3);
+	alphaTEX "Texture:0";
+}
+Texture{
+	VTEX "Texture:0";
+}

@@ -1,0 +1,12 @@
+luxinia_Shader_v310
+Technique:VID_CG_SM3_TEX8{
+	GpuProgram{
+		VCG;
+		BASE 0 "volpos.cg" "pos_v";
+		param "obj2vol" 0 VID_ARRAY (0,0,0,1) 4;
+	}
+	GpuProgram{
+		FCG;
+		BASE 0 "volpos.cg" "pos_f";
+	}
+}

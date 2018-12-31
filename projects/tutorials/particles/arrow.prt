@@ -1,0 +1,39 @@
+luxinia_ParticleSys_v120
+RenderFlag{
+	blendmode VID_DECAL;
+	sort;
+}
+Emitter{
+	type VID_RECTANGLE;
+	width 10;
+	height 400;
+	axis 2;
+	//size 400;
+	spread (5,15);
+	velocity 150;
+	velocityvar	50;
+	rate 700;
+	count 3000;
+}
+Particle{
+	type VID_QUAD;
+	size	30;
+	sizevar 10;
+	life	1500;
+	lifevar	500;
+	rotatevelocity;
+}
+Color{
+	numcolor 3;
+	RGBA	10 (1.0,1.0,0.04,1.0);
+	RGBA	60 (1.0,0.2,0.04,1.0);
+	RGBA	90 (0.8,0.3,0.1,0.1);
+	interpolate;
+}
+Texture{
+	numtex 1;
+	TEX 0 "arrow.tga";
+}
+Forces{
+	//gravity (200.0,150.0,150.0) 0;
+}

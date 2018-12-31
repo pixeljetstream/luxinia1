@@ -1,0 +1,6 @@
+luxinia_Material_v110
+Shader{
+	SHD "volpos.shd";
+	control "obj2vol" 0 16;
+	param "obj2vol" (1,1,1,1) 0 4;
+}

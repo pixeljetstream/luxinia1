@@ -1,0 +1,53 @@
+luxinia_Material_v110
+
+Shader{
+		// just Shader is same as Shader:0, 
+		// which always has to be defined
+	SHD "3tex_diffspecillum.shd";
+		// the shader we want to use
+		
+	control "specularctrl" 0 4;	
+		// control objects and modifiers allow us to give
+		// each instance that uses this material unique values
+		
+		// we only want to control all values of the next
+		// controllable value
+		// 0 is the start, 4 the length
+		
+	param "specularctrl" (1,1,1,8);
+		// we make this parameter inside the shader unique for this 
+		// material and initialize it with a default value
+}
+//// FOR TUTORIAL FBO GLOW/MRT
+IF:USE_SPLITGLOWSRC{
+		// if this resource.condition is true, we will load
+		// a second shader that can be activated with 
+		// rcmdshaders.shaderstage
+Shader:1{
+	SHD "3tex_diffspecillum.shd^-DGLOWSRCONLY";
+		// we load the shader and also add a Cg Compiler 
+		// preprocessor string, in which we set  
+		// the "//define GLOWSRCONLY"
+	
+	// control objects must be unique in name, for entire material,
+	// so we cant use same name as above
+	control "specularctrlSplit" 0 4;	
+	param "specularctrl" (1,1,1,8);
+}
+//// END TUTORIAL FBO GLOW/MRT
+}
+Texture:0{
+	TEX "t33comb.png";	// the combined texture that holds 
+						// specular in the alpha channel
+}
+Texture:1{
+	TEX "t33diff.png";	// only diffuse
+}
+Texture:2{
+	TEX "t33spec.png";	// only specular
+}
+Texture:3{
+	TEX "t33illum.png";	// emissive
+}
+// only those textures that are really used by a shader 
+// will be made active

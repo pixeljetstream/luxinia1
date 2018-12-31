@@ -1,0 +1,23 @@
+// lets use a function for phong-shading
+void phong_shading(
+		// our inputs
+		float3 normal, float3 toLight, float3 toCam, float specpower,
+		// and variables we want to write into, or read as well
+	out float diffuse, inout float4 specular)
+{
+	// diffuse lighting term
+	// saturate does clamp to [0,1]
+	diffuse = saturate(dot(normal,toLight)) ;
+	
+	// specular term is how much the lightsource
+	// is reflected to the eye.
+	// We invert the toCam vector to make it
+	// "toPos", as reflect function assumes incident
+	// vectors.
+	float3 toCamReflected = reflect(-toCam,normal);
+	
+	float spec = saturate(dot(toLight,toCamReflected));
+	// specularctrl is our control vector, 
+	// we use .w for highlight sharpness
+	specular *= pow(spec,specpower);
+}

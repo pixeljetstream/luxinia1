@@ -1,0 +1,19 @@
+luxinia_Material_v110
+Shader:0{
+	SHD "normalmap_full.shd";
+}
+Texture:0{
+	TEX "senior.any"; 
+	// .any or .ANY is a special extension and will
+	// take the first bitmap in question
+	// preferred order is dds,png,jpg,tga
+}
+Texture:1{
+	TEX "senior_localcombined.any";
+}
+Texture:2{
+	TEX "senior_s.any";
+}
+Texture:3{
+	TEX "senior_ao.any";
+}

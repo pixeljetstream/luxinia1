@@ -1,0 +1,14 @@
+luxinia_Material_v110
+Shader{
+	SHD "pfx_add2.shd";
+	control "weights" 0 8;
+	param "weights" (0,0,0,0) 0 2;
+}
+Texture:0{
+	texcontrol "source0";
+	TEX "?white2D";
+}
+Texture:1{
+	texcontrol "source1";
+	TEX "?white2D";
+}

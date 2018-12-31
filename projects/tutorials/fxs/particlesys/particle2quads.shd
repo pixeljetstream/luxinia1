@@ -1,0 +1,16 @@
+luxinia_Shader_v310
+Technique:VID_CG_SM4{
+	GpuProgram{
+		BASE 0 "particlesys.cg" "QuadGeneratorVS";
+		param "params" 1 VID_VALUE (8.0,20,20.0,0.1) 0;
+		VCG;
+	}
+	GpuProgram{
+		BASE 0 "particlesys.cg" "DummyPS";
+		FCG;
+	}
+	Texture{
+		DUMMY;
+		texcoord 4;
+	}
+}

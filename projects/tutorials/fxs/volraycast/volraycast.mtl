@@ -1,0 +1,24 @@
+luxinia_Material_v110
+Shader{
+	SHD "volraycast.shd";
+	control "control" 0 4;
+	param "control" (1,1,1,1);
+	control "campos" 0 3;
+	param "campos" (1,1,1,1);
+	control "volscale" 0 3;
+	param "volscale" (1,1,1,1);
+}
+Texture:0{
+	texcontrol "raystart";
+	// dummy values
+	TEX "?white2D";
+}
+Texture:1{
+	texcontrol "rayend";
+	TEX "?white2D";
+}
+Texture:2{
+	texcontrol "volume";
+	TEX "?white2D";
+}
+

@@ -1,0 +1,12 @@
+luxinia_Shader_v310
+
+NewPass{
+	blendmode VID_REPLACE;			
+}
+Texture{
+	param "texconst" 0 VID_TEXCONST0 (0,0,0,1);
+	blendmode VID_REPLACE_CONST;
+	//SPECULAR;
+	//blendmode VID_AMOD_VERTEX;
+	//sunreflectmap;
+}

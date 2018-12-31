@@ -1,0 +1,60 @@
+struct vfconn
+{
+    float4 hPos : POSITION;
+	float4 vPos : TEXCOORD0;
+};
+
+float4 arraymul(float4 arraymatrix[],int offset, float4 v)
+{
+	float4 outv;
+	outv.x = dot(v,arraymatrix[0+offset]);
+	outv.y = dot(v,arraymatrix[1+offset]);
+	outv.z = dot(v,arraymatrix[2+offset]);
+	outv.w = dot(v,arraymatrix[3+offset]);
+	return outv;
+}
+
+vfconn frontplane_v(	float4 oPos : POSITION 
+				
+				,uniform float4 screen2vol[4]
+				,uniform float4 camattribs
+				,uniform float4x4 WVP : WORLDVIEWPROJ
+			)
+{
+	
+    vfconn OUT;
+	
+	float2 screen = (oPos.xy-0.5)*2*camattribs.xy;
+	float4 corner = float4(screen.x,camattribs.z,screen.y,1); //
+	
+	float4 wPos = arraymul(screen2vol,0,corner);
+	OUT.vPos = wPos;
+	OUT.vPos.w = 0.0;
+	
+    OUT.hPos = mul(WVP,oPos);
+	
+	return OUT;
+}
+
+
+vfconn pos_v(	float4 oPos : POSITION
+				,uniform float4x4 WVP : WORLDVIEWPROJ
+				,uniform float4 obj2vol[4]
+			)
+{
+	
+    vfconn OUT;
+	
+	OUT.vPos = arraymul(obj2vol,0,oPos);
+	OUT.vPos.w = 1.0;
+	
+    OUT.hPos = mul(WVP,oPos);
+	
+
+	return OUT;
+}
+
+float4 pos_f(	vfconn IN) : COLOR
+{
+	return saturate(IN.vPos);
+}

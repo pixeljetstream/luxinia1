@@ -1,0 +1,128 @@
+/*
+	Tangent Space Normal Mapping in Luxinia
+	by Christoph Kubisch
+*/
+
+// Let's start with the input structure for the vertex program.
+// This is the data that is fed from the application per-vertex.
+// The sum of all bindings may not exceed 16 attributes. 
+//
+// Luxinia can provide tangents via ATTR15 when rendering
+// regular meshes.
+// For particles there are some more special attributes.
+
+
+struct appdata
+{
+    float4 pos : 		POSITION;
+    float2 tex0 : 		TEXCOORD0;	
+    float3 normal: 		NORMAL;
+    float4 tangent : 	ATTR15;
+};
+
+// This structure is the output of the vertex stage, and input
+// to the pixel/fragment program. 
+// Typically you would use the TEXCOORD0-7 interpolators. 
+// and COLOR.
+
+struct vfconn
+{
+    float4 position : 	POSITION;
+    float2 tex0 : 		TEXCOORD0;
+    float3 lightvec : 	TEXCOORD1;
+    float3 camvec : 	TEXCOORD2;
+};
+
+
+
+vfconn lit1_v(appdata IN,
+			uniform float4 lightpos,
+			uniform float4 campos,
+            uniform float4x4 WorldViewProjMatrix
+            )
+{
+    vfconn OUT;
+    
+    float3 tolight = lightpos.xyz-IN.pos.xyz;
+    
+	OUT.position = mul(WorldViewProjMatrix, IN.pos);
+	
+	float3 binormal = cross(IN.normal,IN.tangent.xyz)*-IN.tangent.w;
+	
+	float3 ldir;
+	ldir.x = dot(tolight,IN.tangent.xyz);
+	ldir.y = dot(tolight,binormal);
+	ldir.z = dot(tolight,IN.normal);
+	
+	
+	ldir.z *= (ldir.z > 0) ? 1 : 5;
+	
+	OUT.lightvec = ldir;
+	
+	tolight = campos.xyz - IN.pos.xyz;
+	ldir.x = dot(tolight,IN.tangent.xyz);
+	ldir.y = dot(tolight,binormal);
+	ldir.z = dot(tolight,IN.normal);
+	
+	OUT.camvec = ldir;
+	OUT.tex0 = IN.tex0;
+    
+    return  OUT;
+}
+
+float4 lit1_f(vfconn IN,
+		uniform float4 lightambient,
+		uniform float4 lightdiffuse,
+		uniform float4 ambiocclusion,
+		uniform sampler2D diffusemap : TEXUNIT0,
+		uniform sampler2D normalmap : TEXUNIT1,
+		uniform sampler2D specmap : TEXUNIT2,
+		uniform sampler2D ambimap : TEXUNIT3) : COLOR
+{
+	float4 color = tex2D(diffusemap,IN.tex0);
+	float4 ambicolor = tex2D(ambimap,IN.tex0);
+	color = lerp(color,ambicolor,ambiocclusion.w);
+	
+	float3 normal = float3(tex2D(normalmap,IN.tex0))*2-1;
+	float3 lightvec = normalize(IN.lightvec);
+	
+	float diff = dot(normal,lightvec) ;
+	lightvec += normalize(IN.camvec);
+	lightvec *= 0.5;
+	color = color*max(0,diff)*lightdiffuse;
+	
+	float4 lambi = lightambient;
+
+	if (diff > 0){
+		float spec = saturate(dot(normal,lightvec));
+		spec = pow(spec,8) * ambiocclusion.z;
+		color += spec * tex2D(specmap,IN.tex0);		
+	}
+
+	lambi *= (ambicolor*ambiocclusion.x) + ambiocclusion.y;
+	color += lambi;
+	return color;
+}
+
+// specular only
+// in case for dedicated "Bloom/Glow" rendering
+float4 spec1_f(vfconn IN,
+		uniform sampler2D normalmap : TEXUNIT0,
+		uniform sampler2D specmap : TEXUNIT1) : COLOR
+{	
+	float3 lightvec = normalize(IN.lightvec);
+	float3 normal = float3(tex2D(normalmap,IN.tex0))*2-1;
+	
+	float diff = dot(normal,lightvec) ;
+	lightvec += normalize(IN.camvec);
+	lightvec *= 0.5;
+	half4 color = 0;
+	
+	if (diff > 0){
+		float spec = saturate(dot(normal,lightvec));
+		spec = pow(spec,8);
+		color += spec * tex2D(specmap,IN.tex0);
+	}
+	
+	return color ;
+}

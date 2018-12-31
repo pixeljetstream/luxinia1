@@ -1,0 +1,212 @@
+luxinia_Shader_v310
+
+Technique:VID_LOWDETAIL{
+	Texture
+	{
+		TEX "Texture:0";
+		texcoord 0;
+	}
+	Texture
+	{
+		TEX "Texture:1";
+		blendmode VID_ADD;
+		texcoord 1;	
+	}
+}
+
+Technique:VID_ARB_VF_TEX4{
+	NewPass{
+		blendmode VID_REPLACE;
+	}
+	GpuProgram
+	{
+		BASE 0 "skyshader.cg.fragment_main^arbfp1.glp" ""
+		FPROG;
+	}
+	Texture
+	{
+		// cloud * cloudcolor
+		TEX "Texture:1";
+		texcoord 1;
+	}
+	Texture
+	{
+		TEX "Texture:2";
+		// sun*suninfluence + cloud * cloudinfluence(in background)
+		screenmap;
+	}
+	Texture
+	{
+		TEX "Texture:0";
+		// add background
+		texcoord 0;	
+	}
+	Texture
+	{
+		//darken clouds
+		TEX "Texture:3";
+		screenmap;
+	}
+}
+
+// only makes sense if user can do modadd combiner
+IF:CAP_MODADD{
+	IF:CAP_COMBINE4{
+	Technique:VID_ARB_TEXCOMB_TEX4{
+			NewPass{
+				blendmode VID_REPLACE;
+			}
+			Texture
+			{
+				// cloud * cloudcolor
+				TEX "Texture:1";
+				blendmode VIDTC_MOD:TEX.C|CONST.C;
+				alphamode VIDTC_MOD:TEX0.A|TEX1.A;
+				texcoord 1;
+			}
+			Texture
+			{
+				TEX "Texture:2";
+				// sun*suninfluence + cloud * cloudinfluence(in background)
+				blendmode VIDTC_COMB4:CONST.C|PREV.A|PREV.C|TEX2.A;
+				alphamode VIDTC_MOD:TEX0.AINV|TEX3.A;
+				screenmap;
+			}
+			Texture
+			{
+				TEX "Texture:0";
+				// add background
+				blendmode VID_ADD;
+				alphamode VIDTC_ADD:PREV.AINV|CONST.A;
+				texcoord 0;	
+			}
+			Texture
+			{
+				//darken clouds
+				TEX "Texture:3";
+				blendmode VIDTC_MOD:PREV.C|PREV.A;
+				screenmap;
+			}
+	}
+	}
+	ELSE{
+		Technique:VID_ARB_TEXCOMB_TEX4{
+			NewPass{
+				blendmode VID_REPLACE;
+			}
+			Texture
+			{
+				// clouds * cloudcolor
+				TEX "Texture:1";
+				blendmode VIDTC_MOD:TEX.C|CONST.C;
+				texcoord 1;
+			}
+			Texture
+			{
+				// clouds + background
+				TEX "Texture:0";
+				blendmode VIDTC_MODADD:TEX.A|TEX.C|PREV.C;
+				alphamode VIDTC_MOD:TEX0.A|TEX2.A;
+				texcoord 0;	
+			}
+			Texture
+			{
+				// prev + sun
+				TEX "Texture:2";
+				blendmode VIDTC_MODADD:CONST.C|PREV.C|PREV.A;
+				screenmap;
+			}
+			NewPass{ 
+				// darken clouds
+				blendmode VID_MODULATE;
+			}
+			Texture{
+				TEX "Texture:1";
+				blendmode VID_REPLACE;
+				alphamode VIDTC_MOD:TEX0.AINV|TEX1.A;
+				texcoord 1;
+			}
+			Texture{
+				TEX "Texture:3";
+				blendmode VIDTC_ADD:PREV.AINV|CONST.A;
+				screenmap;
+			}
+	}
+	}
+
+Technique:VID_ARB_TEXCOMB{
+		NewPass{
+			// background + clouds
+			blendmode VID_REPLACE;
+		}
+		Texture
+		{
+			// clouds * cloudcolor
+			TEX "Texture:1";
+			blendmode VIDTC_MOD:TEX.C|CONST.C;
+			texcoord 1;
+		}
+		Texture
+		{
+			// background + clouds
+			TEX "Texture:0";
+			blendmode VIDTC_MODADD:TEX.A|TEX.C|PREV.C;
+			texcoord 0;	
+		}
+
+		NewPass{
+			// add sun
+			blendmode VID_AMODADD;
+		}
+		Texture
+		{
+			TEX "Texture:1";
+			blendmode VID_REPLACE;
+			alphamode VIDTC_MOD:TEX0.A|TEX1.A;
+			texcoord 1;	
+		}
+		Texture
+		{
+			// suncolor with combined cloud/sun alpha
+			TEX "Texture:2";
+			blendmode VID_REPLACE_CONST;
+			alphamode VIDTC_REP:PREV.A;
+			screenmap;
+		}
+		
+		NewPass{ 
+			// darken clouds
+			blendmode VID_MODULATE;
+		}
+		Texture{
+			TEX "Texture:1";
+			blendmode VID_REPLACE;
+			alphamode VIDTC_MOD:TEX0.AINV|TEX1.A;
+			texcoord 1;
+		}
+		Texture{
+			TEX "Texture:3";
+			blendmode VIDTC_ADD:PREV.AINV|CONST.A;
+			screenmap;
+		}
+}
+}
+Technique:VID_DEFAULT{
+	Texture
+	{
+		TEX "Texture:0";
+		texcoord 0;
+	}
+	Texture
+	{
+		TEX "Texture:1";
+		blendmode VID_AMODADD_PREV;
+		texcoord 1;	
+	}
+	Texture
+	{
+		TEX "Texture:2";
+		blendmode VID_AMODADD;
+		screenmap;
+	}
+}

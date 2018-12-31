@@ -1,0 +1,165 @@
+
+// The data we receive from the application
+// use only what you really need/want
+
+// The vertextype of a mesh in luxinia also decides what 
+// can be passed. Lookup the documentation for details
+// (Core API -> renderinterface -> vertextype). Not all
+// vertextypes have NORMAL or COLOR.
+
+struct AppVertex
+{
+	// the : is the semantic, ie. the binding to the
+	// opengl state
+	// you can access POSITION, NORMAL, COLOR, TEXCOORD0-7,
+	// ATTR15 for meshes and some more for particle rendering.
+	float4 oPos : 		POSITION;
+	float3 oNormal: 	NORMAL;
+	float4 tex0 : 		TEXCOORD0;
+	
+	// What actually is used in TEXCOORDx is defined in the 
+	// SHD-Shader. There you can link specific vertex texcoordsets
+	// to the TEXCOORDx binding. 
+	
+	// Every vertex attribute is in object-space and not 
+	// transformed.
+	// Transforms to world/view/screen-space are done 
+	// in vertex-shader
+};
+
+
+
+// This structure defines what the vertex-shader outputs
+// and becomes input to fragment-shader
+struct VertexOut
+{
+	float4 hPos : 		POSITION;	// must-have
+		
+	// other outputs, you can use COLOR and TEXCOORD0-7
+	// these will also serve as input to fragment shader.
+	float2 tex0 : 		TEXCOORD0;	
+	float3 oNormal : 	TEXCOORD1;
+	float4 oPos :		TEXCOORD2;
+};
+
+
+// The Vertex-Shader
+// must write to POSITION, which is the screenspace position
+// it lies within a box that has the extents -1,+1 
+// and along Z -1,0
+
+VertexOut vertex_main(AppVertex IN,
+			// among several automatic parameters, this matrix
+			// allows you to transform object-space to screenspace 
+			uniform float4x4 WorldViewProjMatrix	
+            )
+{
+	VertexOut OUT;
+	
+	// transform to screenspace
+	OUT.hPos = mul(WorldViewProjMatrix, IN.oPos);
+	
+	// output other attributes, for fragment-shader
+	OUT.tex0 = IN.tex0.xy;
+	OUT.oNormal = IN.oNormal;
+	OUT.oPos = IN.oPos;
+	
+	return  OUT;
+}
+
+// The Fragment-Shader
+// it must write to COLOR/COLOR0
+
+// the #ifdef part means that certain prepocessor codepaths are 
+// evaluated you can toggle these in a Cg file yourself,
+// like: #define GLOWSRCMRT
+// Or they are passed from outside. The FBO Glow Tutorial
+// can emit two different defines
+// 	GLOWSRCMRT is used when multiple render targets are available
+//		and will write main color and glow sources in one pass
+//	GLOWSRCONLY is used when only glow sources should be written
+
+struct FragOut{
+	// must write to COLOR/COLOR0
+	// COLOR1-3 need Multiple Render Targets support
+	float4 color0 : COLOR0;
+#ifdef GLOWSRCMRT
+	float4 color1 : COLOR1;
+#endif
+};
+
+// lets use a function for phong-shading
+// defined in a external file, where we store
+// such functions for re-use
+
+#include "common.cg"
+
+
+FragOut fragment_main(VertexOut IN,
+		// various parameters we control from the SHD file
+		uniform float4 lightambient,
+		uniform float4 lightdiffuse,
+		uniform float4 oLightpos,
+		uniform float4 oCampos,
+		uniform float4 specularctrl,
+		
+		// the textures
+		// there is sampler1D,2D,3D,CUBE,RECT
+		// and TEXUNIT0-15
+		// textures are bound to the TEXUNIT slot with the same  
+		// order as they were defined in the SHD Pass
+		// That sometimes may not be the same as the
+		// "Material" slot!!
+		uniform sampler2D diffusemap : TEXUNIT0,
+		uniform sampler2D specmap : TEXUNIT1,
+		uniform sampler2D illummap : TEXUNIT2)
+{
+	
+	// sample the textures 
+	float4 texcolor = tex2D(diffusemap,IN.tex0);
+	float4 texspec = tex2D(specmap,IN.tex0);
+	float4 texillum = tex2D(illummap,IN.tex0);
+
+	// create a smooth per-pixel normal
+	float3 normal = normalize(IN.oNormal);
+
+	// create toLight direction vector
+	float3 toLight = normalize(oLightpos.xyz-IN.oPos.xyz);
+	// create toCam direction vector
+	float3 toCam = normalize(oCampos.xyz-IN.oPos.xyz);
+	
+	float diffuse;
+	float4 specular = float4(specularctrl.xyz,1);
+	// the float(..,1) creates a vector4 with w = 1
+	// as later outcolor is also a float4 we need to make the 
+	// vector compatible
+	
+	phong_shading(normal,toLight,toCam,specularctrl.w,
+		diffuse,specular);
+
+
+	FragOut OUT;
+	// final color output
+	// we mix the lighting terms with lightcolors and
+	// texturecolors
+	OUT.color0 = texcolor*(diffuse*lightdiffuse+lightambient) + 
+				texspec * specular + texillum;
+
+	
+#ifdef GLOWSRCONLY
+	// in this mode, we only output specular, ie. overwrite previous
+	// the compiler is always smart enough to only do 
+	// calculations we really need at the end
+	OUT.color0 = texspec*specular + texillum;
+#elif defined(GLOWSRCMRT)
+	// in this case we can output two colors at same time
+	OUT.color1 = texspec*specular + texillum;
+	OUT.color1.w = texcolor.w;
+#endif
+
+	// in all cases we want to keep alpha
+	OUT.color0.w = texcolor.w;
+	
+	return OUT;
+}
+

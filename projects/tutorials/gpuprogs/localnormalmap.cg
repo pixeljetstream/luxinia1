@@ -1,0 +1,89 @@
+/*
+	Local Space Normal Mapping in Luxinia
+	by Christoph Kubisch
+*/
+
+
+
+struct AppVertex
+{
+	float4 oPos : 		POSITION;
+	float2 tex0 : 		TEXCOORD0;	
+#ifdef USEMIRROR
+	float3 oMirrornormal : 	ATTR15;
+#endif
+};
+
+
+struct VertexOut
+{
+	float4 hPos : 		POSITION;
+	float2 tex0 : 		TEXCOORD0;
+	float4 oPos : 		TEXCOORD1;
+#ifdef USEMIRROR
+	float3 oMirrornormal : TEXCOORD2;
+#endif
+};
+
+#include "common.cg"
+
+VertexOut lit1_v(AppVertex IN,
+            uniform float4x4 WorldViewProjMatrix
+            )
+{
+	VertexOut OUT;
+	
+	// transform to screenspace
+	OUT.hPos = mul(WorldViewProjMatrix, IN.oPos);
+	
+	// output other attributes, for fragment-shader
+	OUT.tex0 = IN.tex0.xy;
+	OUT.oPos = IN.oPos;
+	
+#ifdef USEMIRROR
+	OUT.oMirrornormal = IN.oMirrornormal;
+#endif
+	
+	return  OUT;
+}
+
+float4 lit1_f(VertexOut IN,
+		uniform float4 lightambient,
+		uniform float4 lightdiffuse,
+		uniform float4 oLightpos,
+		uniform float4 oCampos,
+		uniform sampler2D normalmap : TEXUNIT0) : COLOR
+{
+	float4 texnormal = tex2D(normalmap,IN.tex0)*2-1;
+	someerror
+	float3 normal = texnormal.xyz;
+
+#ifdef USEMIRROR
+	// reflect normal at mirror
+	normal -= IN.oMirrornormal*(dot(IN.oMirrornormal,normal)*2);
+#endif
+	normal = normalize(normal);
+
+	// create toLight direction vector
+	float3 toLight = normalize(oLightpos.xyz-IN.oPos.xyz);
+	// create toCam direction vector
+	float3 toCam = normalize(oCampos.xyz-IN.oPos.xyz);
+	
+	float diffuse;
+	float4 specular = float4(1,1,1,1);
+	
+	phong_blinn_shading(normal,toLight,toCam,8,
+		diffuse,specular);
+
+	// final color output
+	// we mix the lighting terms with lightcolors and
+	// texturecolors
+	diffuse *= 0.8;
+	float4 outcolor = (diffuse*lightdiffuse+lightambient);
+/*
+#ifdef USEMIRROR
+	outcolor.xyz = IN.oMirrornormal*0.5+0.5;
+#endif
+*/
+	return outcolor;
+}

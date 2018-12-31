@@ -1,0 +1,14 @@
+luxinia_Material_v110
+Shader{
+	SHD "alphatest.shd";
+	unlit;
+}
+Texture:0{
+	TEX "leaves.png";
+	floatmod "cos" COS 5217 (0.0) 0 0;
+	floatmod "sin" SIN 7123 (0.0) 0 1;
+	texmove (0.01,0.01,0);
+	floatmod "cos" COS 6531 (0.0) 0 2;
+	texrotate (0,0,3);
+	texcenter (0.5,0.5,0);
+}

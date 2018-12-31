@@ -1,0 +1,7 @@
+luxinia_Material_v110
+Shader{
+	SHD "1color_cubemapsky.shd";
+}
+Texture:0{
+	TEX "USER_TEX(carreflect)";
+}

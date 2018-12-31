@@ -1,0 +1,13 @@
+luxinia_Shader_v310
+Technique:VID_CG_SM3_TEX8{
+	GpuProgram{
+		VCG;
+		BASE 0 "volpos.cg" "frontplane_v";
+		param "screen2vol" 0 VID_ARRAY (0,0,0,1) 4;
+		param "camattribs" 0 VID_VALUE (0,0,0,1);
+	}
+	GpuProgram{
+		FCG;
+		BASE 0 "volpos.cg" "pos_f";
+	}
+}

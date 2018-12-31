@@ -1,0 +1,27 @@
+luxinia_Shader_v310
+Technique:VID_CG_SM3_TEX8{
+	GpuProgram{
+		VCG;
+		BASE 0 "volraycast.cg" "main_v";
+	}
+	GpuProgram{
+		FCG;
+		BASE 0 "volraycast.cg" "main_f";
+		param "control" 0 VID_VALUE (0,0,0,1);
+		param "campos" 0 VID_VALUE (0,0,0,1);
+		param "volscale" 0 VID_VALUE (0,0,0,1);
+		param "voltexsizeinv" 0 VID_TEXSIZEINV (0,0,0,1) 2;
+	}
+	Texture{
+		TEX "Texture:0";
+		texcoord -1;
+	}
+	Texture{
+		TEX "Texture:1";
+		texcoord -1;
+	}
+	Texture{
+		TEX "Texture:2";
+		texcoord -1;
+	}
+}

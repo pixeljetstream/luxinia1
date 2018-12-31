@@ -1,0 +1,113 @@
+
+struct Particle
+{
+	float4 oPos : 		POSITION;
+	float4 oDirAge : 	TEXCOORD0;
+};
+
+// This matches Luxinia's vertex32tex2
+struct OutVertex
+{
+	float4	tex;		// tex0, tex1
+	float4	poscolor;	// pos xyz, color stored in .w
+};
+
+struct OutQuad
+{
+	float4 hpos	: POSITION;
+	OutVertex	vertices[4] : TEXCOORD0;
+};
+
+#define STRETCHDIR
+
+OutQuad	QuadGeneratorVS(Particle IN
+				,uniform float4 params
+				,uniform float4x4 wmat : WORLD
+				,uniform float3 campos : VIEWPOS
+				,uniform float4x4 viewmat : VIEWMATRIX)
+{
+	float4	dirs[4] = {
+		float4(-0.5,-0.5,1,1),
+		float4(-0.5,0.5,1,1),
+		float4(0.5,0.5,1,1),
+		float4(0.5,-0.5,1,1),
+	};
+	
+	OutQuad	OUT;
+	OUT.hpos = float4(0,0,0,0);
+	
+
+	float age = saturate(1.0-IN.oDirAge.w);
+	float vel = saturate(length(IN.oDirAge.xyz)*params.y);
+	float4 color = float4(0,vel,1-vel,age);
+	
+	float clr = pack_4ubyte(color);
+	
+	float4 wpos = mul(wmat,IN.oPos);
+	
+	float3 xdir = viewmat[0].xyz;
+	float3 ydir = viewmat[1].xyz;
+	
+#ifdef STRETCHDIR
+	float2	texdirs[4] = {
+		float2(1,0),
+		float2(0,0),
+		float2(0,1),
+		float2(1,1),
+		
+	};
+	
+	if (vel < 0.001f){
+		xdir *= params.w;
+		ydir *= params.w;
+	}
+	else{
+		float3 wdir = normalize(mul((float3x3)wmat,IN.oDirAge.xyz));
+		float3 tocam = normalize(campos-wpos.xyz);
+		float3 side = cross(tocam,wdir);
+		
+		if (dot(wdir,tocam) > 0.999){
+			xdir *= params.w;
+			ydir *= params.w;
+		}
+		else{
+			xdir = wdir*params.z*vel;
+			ydir = normalize(side)*params.x;
+		}
+	}
+
+#else
+	float2	texdirs[4] = {
+		float2(0,0),
+		float2(0,1),
+		float2(1,1),
+		float2(1,0),
+	};
+	
+	xdir *= params.x;
+	ydir *= params.x;
+	
+#endif	
+
+	for (int i=0; i < 4; i++){
+		OutVertex vert;
+		
+		float2 tex = texdirs[i];
+		vert.tex.xy = tex;
+		vert.tex.zw = tex;
+		
+		
+		vert.poscolor.xyz = wpos.xyz + dirs[i].x * xdir + dirs[i].y * ydir;
+		vert.poscolor.w = clr;
+		
+		OUT.vertices[i] = vert;
+	}
+
+	return OUT;
+}
+
+float4 DummyPS() : COLOR
+{
+	return float4(1,1,1,1);
+}
+

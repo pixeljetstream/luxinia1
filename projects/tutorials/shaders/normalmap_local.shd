@@ -1,0 +1,34 @@
+luxinia_Shader_v310
+Technique:VID_ARB_VF_TEX4{
+	GpuProgram{
+		BASE 0 "localnormalmap.cg" "lit1_v";
+		VCG;
+	IF:USEMIRROR{
+		tangents;
+	}
+	}
+	GpuProgram{
+		BASE 0 "localnormalmap.cg" "lit1_f";
+		param "lightambient" 1 VID_LIGHTAMBIENT (0,0,0,1.0) 0;
+		param "lightdiffuse" 1 VID_LIGHTCOLOR (0,0,0,1.0) 0;
+		param "oLightpos" 1 VID_LIGHTPOS (0,0,0,1.0) 0;
+		param "oCampos" 2 VID_CAMPOS (0,0,0,1.0);
+		FCG;
+	}
+	Texture{
+		TEX "Texture:0";
+	}
+}
+Technique:VID_ARB_TEXCOMB{
+	Texture{
+		TEX "Texture:0";
+		
+		// pass light direction (object space)
+		// as const color
+		
+		param "lightdir" 1 VID_LIGHTDIR (0,0,0,1.0) 0;
+		
+		// simply dot3 normalmap with lightdir
+		blendmode VIDTC_DOT3:TEX.C|CONST.C
+	}
+}

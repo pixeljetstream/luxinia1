@@ -1,0 +1,8 @@
+luxinia_Material_v110
+Shader{
+	SHD "volfrontplane.shd";
+	control "camattribs" 0 4;
+	param "camattribs" (1,1,1,1);
+	control "screen2vol" 0 16;
+	param "screen2vol" (1,1,1,1) 0 4;
+}

@@ -1,0 +1,39 @@
+struct VertexOut
+{
+	float4 tex0 : 	TEXCOORD0;	
+	float4 tex1 : 	TEXCOORD1;
+	float4 tex2 :	TEXCOORD2;
+	float4 tex3 :	TEXCOORD3;
+};
+
+float4 fragment_main(VertexOut IN,
+		uniform float4 cloudcolor : state.texenv[0].color,
+		uniform float4 suncolor : state.texenv[1].color,
+		uniform float4 cloudbrightness : state.texenv[2].color,
+		
+
+		
+		uniform sampler2D sampcloud : 	TEXUNIT0,
+		uniform sampler2D sampsun : 	TEXUNIT1,
+		uniform sampler2D sampbg : 		TEXUNIT2,
+		uniform sampler2D sampsundarken :TEXUNIT3) : COLOR
+{
+	float4 colorout;
+	
+	
+	float4 texcloud = tex2D(sampcloud,IN.tex0.xy);
+	float4 texsun = tex2Dproj(sampsun,IN.tex1.xyz);
+	float4 texbg = tex2D(sampbg,IN.tex2.xy);
+	float4 texsundarken = tex2Dproj(sampsundarken,IN.tex3.xyz);
+	
+	// cloud color
+	colorout = (texcloud*cloudcolor)*texbg.w;
+	// add sun
+	colorout += suncolor*texcloud.w*texsun.w;
+	// add bg
+	colorout += texbg;
+	// darken clouds
+	colorout *= (1-(1-(texcloud.w*texsundarken.w))) + cloudbrightness.w;
+	
+	return colorout;
+}

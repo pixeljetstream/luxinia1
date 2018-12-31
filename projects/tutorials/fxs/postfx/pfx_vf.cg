@@ -1,0 +1,104 @@
+/*
+	Some PostFX Shaders
+	
+	
+*/
+
+struct vfconn
+{
+	float4 Position : POSITION;
+	float4 Color 	: COLOR;
+	float2 TexCoord0 : TEXCOORD0;
+	float2 TexCoord1 : TEXCOORD1;
+	float2 TexCoord2 : TEXCOORD2;
+	float4 PixelPos : TEXCOORD3;
+};
+
+
+vfconn vert(	float4 Position : POSITION, 
+				float2 TexCoord : TEXCOORD0,
+				float4 Color 	: COLOR,
+				
+			uniform float4x4 WorldViewProjMatrix,
+				
+			uniform float4 texsize0,
+			uniform float4 texsize1,
+			uniform float4 texsize2,
+			uniform float4x4 WorldMatrix
+			)
+{
+	vfconn OUT;
+	OUT.Color = Color;
+	OUT.Position  = mul(WorldViewProjMatrix,Position);
+	OUT.PixelPos = mul(WorldMatrix,Position);
+	
+	OUT.TexCoord0 = TexCoord * texsize0.xy;
+	
+	OUT.TexCoord1 = TexCoord * texsize1.xy;
+	
+	OUT.TexCoord2 = TexCoord * texsize2.xy;
+	
+	return OUT;
+}
+
+
+float4 frag_add2(	vfconn IN, 
+				uniform samplerRECT tex0 : TEXUNIT0,
+				uniform samplerRECT tex1 : TEXUNIT1,
+				uniform float4 weights[2]
+) : COLOR
+{
+	float4 OutCol = texRECT(tex0, IN.TexCoord0) * weights[0];
+	OutCol += texRECT(tex1, IN.TexCoord1) * weights[1];
+
+	return OutCol;
+}
+
+
+
+
+
+float4 Spectrumize(float4 tc, float4 pixelpos)
+{
+	float4 colorseparator = {0.2,0.55,0.85,1.0};
+	float4 colorvalue = {0,0.87,1.0,0};
+
+	float3 c;
+	float4 p =  pixelpos;
+	
+	float bright = 0;
+	float numpresent = 0;
+	
+	numpresent = dot(step((float3)colorseparator[0],tc.xyz),float3(1,1,1));
+	bright = dot(tc.xyz,float3(1,1,1)) > colorseparator[2]*numpresent ? colorvalue[2] : colorvalue[1];
+	
+	float3 lowinf = step(tc.xyz,(float3)colorseparator[0]);
+	float3 midinf = step((float3)colorseparator[1],tc.xyz);
+	
+	float stippleinf = 1-(((int)p.x+(int)p.y)%2); 
+	
+	// first lowinf
+	// then  midinf
+	// then  stippleinf
+	c = (float3)lerp(bright,colorvalue[0],stippleinf);
+	c = lerp(c,(float3)bright,midinf);
+	c = lerp(c,(float3)colorvalue[0],lowinf);
+	
+
+	return float4(c,tc.w);
+}
+
+
+float4 frag_add2spectrum(	vfconn IN, 
+				uniform samplerRECT tex0 : TEXUNIT0,
+				uniform samplerRECT tex1 : TEXUNIT1,
+				uniform float4 weights[2]
+) : COLOR
+{
+	float4 OutCol = texRECT(tex0, IN.TexCoord0.xy) * weights[0];
+	OutCol += texRECT(tex1, IN.TexCoord1.xy) * weights[1];
+	
+	OutCol = Spectrumize(OutCol,IN.PixelPos);
+
+	return OutCol;
+}
